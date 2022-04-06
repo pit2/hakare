@@ -29,17 +29,16 @@ def convert_img_to_csv(directory, img_name, path_to_csv, label_list=[]):
 
     Each row contains width*height columns for the actual image data, and one column for the label
     """
-    path = os.path.join(directory, img_name)
-    image = Image.open(path)
+
+    image = Image.open(os.path.join(directory, img_name))
     row = np.array(image).flatten()
     with open(os.path.join(directory, ".char.txt"), "r") as txt_file:
         label = txt_file.read()
     label_list.append(label)
     row = np.append(row, len(label_list) - 1)
-    file = open(path_to_csv, "a")
-    writer = csv.writer(file)
-    writer.writerow(row)
-    file.close()
+    with open(path_to_csv, "a") as file:
+        writer = csv.writer(file)
+        writer.writerow(row)
 
 
 convert_img_to_csv("data/images/ETL1/0x003d", "059245.png", "data/test.csv")
