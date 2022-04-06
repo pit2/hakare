@@ -24,21 +24,72 @@ def img_test():
     save_image(img_tensor, "data/tmp/back.png")
 
 
-def convert_img_to_csv(directory, img_name, path_to_csv, label_list=[]):
-    """Convert image to flattened nparray and write it in a row of csv file.
+def convert_img_to_array(directory, img_name, labels=[]):
+    """Convert image to flattened nparray with label attached at last position.
 
-    Each row contains width*height columns for the actual image data, and one column for the label
+    Each row contains width*height columns for the actual image data, and one column for the label.
+    This method assumes the label
+    is the sole content of a file .char.text in the same directory as the image.
+
+    Parameters:
+        directory (string): Path to the directory where the image is located.
+        img_name (string): The file name of the image, including extension.
+        path_to_csv (string): The path to the csv file to which the line is appended.
+        labels (list of strings): Duplicate-free list of strings of previously read labels.
+
+    Returns:
+        nparray - image converted to 1D array plus numeric label at last position.
+        labels parameter (list of strings) augmented by the newly-added label.
     """
 
     image = Image.open(os.path.join(directory, img_name))
     row = np.array(image).flatten()
     with open(os.path.join(directory, ".char.txt"), "r") as txt_file:
         label = txt_file.read()
-    label_list.append(label)
-    row = np.append(row, len(label_list) - 1)
-    with open(path_to_csv, "a") as file:
+    if label not in labels:
+        labels.append(label)
+        ind = len(labels) - 1
+    else:
+        ind = labels.index(label)
+    row = np.append(row, ind)
+
+    return row, labels
+
+
+def convert_to_csv(directory, path_to_csv, path_to_labels_list, labels=[], limit=0):
+    """Read directory e.g. ETL9 and scan its subdirectories for images.
+
+    Each subdirectory must contain a collection of images and a .char.txt file with the label as
+    its sole content. The method writes the images that have been converted to arrays to the
+    given csv file, one line per image, augmented by the corresponding label in the last column.
+    It also saves the labels list as csv (first column index, second is label).
+
+    Parameters:
+        directory (string): Root directory, e.g. data/images/ETL9, for the image files.
+        path_to_csv (string): Path including file name of output csv file.
+        path_to_labels_list (string): Path including file name of labels dictionary csv file.
+        labels (list of strings): List of labels, default empty, but could be converted contents
+            of labels csv dictionary as well.
+        limit (int): number of images to be crawled 0 to crawl all images
+            in the directory.
+    """
+    with open(path_to_csv, "a") as csv_file:
+        count = 0
+        for root, _, files in os.walk(directory):
+            for file in [f for f in files if not f[0] == "."]:
+                row, labels = convert_img_to_array(root, file, labels)
+                writer = csv.writer(csv_file)
+                writer.writerow(row)
+                count += 1
+                if count > limit:
+                    break
+
+    with open(path_to_labels_list, "w") as file:
         writer = csv.writer(file)
-        writer.writerow(row)
+        for i in range(len(labels)):
+            writer.writerow([i, labels[i]])
 
 
-convert_img_to_csv("data/images/ETL1/0x003d", "059245.png", "data/test.csv")
+convert_to_csv("/Volumes/MACBACKUP/DataSets/images/ETL9G",
+               "/Volumes/MACBACKUP/DataSets/ETL-9-examples.csv", "data/ETL9b-labels-examples.csv", [], 100)
+
