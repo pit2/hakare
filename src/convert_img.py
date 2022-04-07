@@ -82,7 +82,7 @@ def convert_to_csv(directory, path_to_csv, path_to_labels_list, labels=[], limit
                 writer = csv.writer(csv_file)
                 writer.writerow(row)
                 count += 1
-                if count > limit:
+                if count > limit > 0:
                     break
 
     write_labels(path_to_labels_list, labels)
@@ -122,7 +122,7 @@ def convert_to_hdf5(directory, path_to_hdf5, path_to_labels_list, labels=[], lim
             img_rows.append(row)
             labels_column.append(ind)
             count += 1
-            if count > limit:
+            if count > limit > 0:
                 break
 
     with h5py.File(path_to_hdf5, "a") as hdf5:
@@ -139,13 +139,14 @@ def read_hdf5(filename):
         data = np.array(list(f[key]))
         img = data[0].reshape(127, 128)
         Image.fromarray(img).show()
+        print(len(data))
 
 
-read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9-examples.hdf5")
+read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9.hdf5")
 
-#  convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
-#                "/Volumes/MACBACKUP/DataSets/ETL-9-examples.hdf5",
-#                "data/ETL9b-labels-hdf5-examples.csv", [], 100)
+# convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
+#                "/Volumes/MACBACKUP/DataSets/ETL-9.hdf5",
+#                "data/ETL9-labels-hdf5.csv")
 
 # convert_to_csv("/Volumes/MACBACKUP/DataSets/images/ETL9G",
 #       "/Volumes/MACBACKUP/DataSets/ETL-9-examples.csv", "data/ETL9b-labels-examples.csv", [], 100)
