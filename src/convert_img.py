@@ -24,6 +24,8 @@ def img_test():
 
     save_image(img_tensor, "data/tmp/back.png")
 
+    return img_tensor
+
 
 def convert_img_to_array(directory, img_name, labels=[]):
     """Convert image to flattened nparray.
