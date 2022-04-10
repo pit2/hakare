@@ -27,7 +27,7 @@ def img_test():
     return img_tensor
 
 
-def convert_img_to_array(directory, img_name, labels=[]):
+def convert_img_to_array(directory, img_name, labels=[], resize=(128, 128)):
     """Convert image to flattened nparray.
 
     Each row contains width*height columns for the actual image data.
@@ -46,6 +46,7 @@ def convert_img_to_array(directory, img_name, labels=[]):
     """
 
     image = Image.open(os.path.join(directory, img_name))
+    image.resize(resize)
     row = np.array(image).flatten()
     with open(os.path.join(directory, ".char.txt"), "r") as txt_file:
         label = txt_file.read()
@@ -144,11 +145,11 @@ def read_hdf5(filename):
         print(len(data))
 
 
-read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9.hdf5")
+# read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9.hdf5")
 
-# convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
-#                "/Volumes/MACBACKUP/DataSets/ETL-9.hdf5",
-#                "data/ETL9-labels-hdf5.csv")
+convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
+                "/Volumes/MACBACKUP/DataSets/ETL-9.hdf5",
+                "data/ETL9-labels-hdf5.csv")
 
 # convert_to_csv("/Volumes/MACBACKUP/DataSets/images/ETL9G",
 #       "/Volumes/MACBACKUP/DataSets/ETL-9-examples.csv", "data/ETL9b-labels-examples.csv", [], 100)
