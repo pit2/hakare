@@ -46,7 +46,7 @@ def convert_img_to_array(directory, img_name, labels=[], resize=(128, 128)):
     """
 
     image = Image.open(os.path.join(directory, img_name))
-    image.resize(resize)
+    image = image.resize(resize)
     row = np.array(image).flatten()
     with open(os.path.join(directory, ".char.txt"), "r") as txt_file:
         label = txt_file.read()
@@ -140,12 +140,12 @@ def read_hdf5(filename):
     with h5py.File(filename, "r") as f:
         key = list(f.keys())[0]
         data = np.array(list(f[key]))
-        img = data[0].reshape(127, 128)
+        img = data[0].reshape(128, 128)
         Image.fromarray(img).show()
         print(len(data))
 
 
-# read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9.hdf5")
+# read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9-1000.hdf5")
 
 convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
                 "/Volumes/MACBACKUP/DataSets/ETL-9.hdf5",
