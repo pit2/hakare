@@ -27,10 +27,9 @@ class Characters(Dataset):
                 self.img_data = self.img_data / 255
                 self.img_data = self.img_data.view(-1,
                                                    self.channels, self. width, self.height)
-                self.img_data.to(DEVICE)
                 # print(f"Data shape in getitem: {self.img_data.shape}")
                 self.label_data = torch.tensor(
-                    np.array(file["labels"])).squeeze().to(DEVICE)
+                    np.array(file["labels"])).squeeze()
         return self.img_data[index], self.label_data[index]
 
     def __len__(self):

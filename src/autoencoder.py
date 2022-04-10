@@ -91,19 +91,33 @@ def train(X, epochs):
         model.parameters(), lr=1e-1, weight_decay=1e-8)
     losses = []
     outputs = []
+    model.train()
 
-    for _ in range(epochs):
+    for i in range(epochs):
+        print(f"Epoch: {i}")
+        first = True
+        local_loss = []
         for img, _ in X:
+            if first:
+                print(torch.cuda.memory_allocated()/1024**2)
+            img = img.to(DEVICE)
+            if first:
+                print(torch.cuda.memory_allocated()/1024**2)
             out = model(img)
             loss = loss_function(img, out)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
-            losses.append(loss)
-            outputs.append((img, out))
+            local_loss.append(loss.item())
+            if first:
+                outputs.append((img, out))
+            first = False
+            del loss, out, img
+        losses.append(np.mean(local_loss))
+        torch.cuda.empty_cache()
 
 
 dataset = data.Characters(data.PATH_TO_DATA_SHORT, 128, 128, 1)
 X_train, _, _ = data.split(dataset)
 
-train(X_train, 100)
+train(X_train, 10)
