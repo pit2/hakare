@@ -4,8 +4,9 @@ import h5py
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
-DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 PATH_TO_DATA = "/Volumes/MACBACKUP/DataSets/ETL-9.hdf5"
+PATH_TO_DATA_SHORT = "/Volumes/MACBACKUP/DataSets/ETL-9-1000.hdf5"
+DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class Characters(Dataset):
@@ -23,7 +24,13 @@ class Characters(Dataset):
         if self.img_data is None:
             with h5py.File(self.path, "r") as file:
                 self.img_data = torch.tensor(np.array(file["images"]))
-                self.label_data = torch.tensor(np.array(file["labels"]))
+                self.img_data = self.img_data / 255
+                self.img_data = self.img_data.view(-1,
+                                                   self.channels, self. width, self.height)
+                self.img_data.to(DEVICE)
+                # print(f"Data shape in getitem: {self.img_data.shape}")
+                self.label_data = torch.tensor(
+                    np.array(file["labels"])).squeeze().to(DEVICE)
         return self.img_data[index], self.label_data[index]
 
     def __len__(self):
@@ -110,8 +117,9 @@ def split(data, batch_size=64, train=0.5, valid=0.2):
 
 
 def dummy():
-    data = Characters(PATH_TO_DATA, 127, 128, 1)
+    data = Characters(PATH_TO_DATA_SHORT, 128, 128, 1)
     print(len(data))
+    print(f"data shape in dummy: {data[3000][0].shape}")
     transform = transforms.ToPILImage()
     img = transform(data[3000][0].view(data.width, data.height))
     img.show()
@@ -120,4 +128,4 @@ def dummy():
 
 
 # data = Characters(PATH_TO_DATA, 127, 128, 1)
-dummy()
+# dummy()
