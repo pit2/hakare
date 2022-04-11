@@ -147,9 +147,9 @@ def read_hdf5(filename):
 
 # read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9-1000.hdf5")
 
-convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
-                "/Volumes/MACBACKUP/DataSets/ETL-9.hdf5",
-                "data/ETL9-labels-hdf5.csv")
+# convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
+#                "/Volumes/MACBACKUP/DataSets/ETL-9.hdf5",
+#                "data/ETL9-labels-hdf5.csv")
 
 # convert_to_csv("/Volumes/MACBACKUP/DataSets/images/ETL9G",
 #       "/Volumes/MACBACKUP/DataSets/ETL-9-examples.csv", "data/ETL9b-labels-examples.csv", [], 100)
