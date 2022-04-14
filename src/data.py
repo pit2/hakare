@@ -14,8 +14,8 @@ class Characters(Dataset):
     def __init__(self, path, num_chunks, width, height, channels):
         self.path = path
         self.cache_idx = []
-        self.img_data = None
-        self.label_data = None
+        self.img_data = {}
+        self.label_data = {}
         self.width = width
         self.height = height
         self.channels = channels
@@ -23,8 +23,6 @@ class Characters(Dataset):
         with h5py.File(self.path, "r") as file:
             self.size = (int)(len(file["images"]))
         self.chunk_size = (int)(math.floor(self.size / self.chunks))
-        print(f"Size: {self.size}")
-        print(f"Chunk size: {self.chunk_size}")
 
     def __getitem__(self, index):
         part_idx = (int)(math.floor(index / self.chunk_size))
@@ -33,25 +31,27 @@ class Characters(Dataset):
                 lower, upper = part_idx * \
                     self.chunk_size, (part_idx+1)*self.chunk_size
                 if part_idx < self.chunks-1:
-                    self.img_data = torch.tensor(
+                    self.img_data[part_idx] = torch.tensor(
                         np.array(file["images"][lower:upper]))
-                    self.label_data = torch.tensor(
+                    self.label_data[part_idx] = torch.tensor(
                         np.array(file["labels"][lower:upper])).squeeze()
                 else:
                     # last chunk may be larger than chunk_size
-                    self.img_data = torch.tensor(
+                    self.img_data[part_idx] = torch.tensor(
                         np.array(file["images"][lower:]))
-                    self.label_data = torch.tensor(
+                    self.label_data[part_idx] = torch.tensor(
                         np.array(file["labels"][lower:])).squeeze()
                 # print(f"Data shape in getitem: {self.img_data.shape}")
-                self.img_data = self.img_data / 255
+                self.img_data[part_idx] = self.img_data[part_idx] / 255
 
-                self.img_data = self.img_data.view(-1,
-                                                   self.channels, self. width, self.height)
-                self.cache_idx = [part_idx]
+                self.img_data[part_idx] = self.img_data[part_idx].view(-1,
+                                                                       self.channels, self. width, self.height)
+                if len(self.cache_idx) > 3:
+                    self.cache_idx.pop(0)
+                self.cache_idx.append(part_idx)
 
         new_idx = index - part_idx*self.chunk_size
-        return self.img_data[new_idx], self.label_data[new_idx]
+        return self.img_data[part_idx][new_idx], self.label_data[part_idx][new_idx]
 
     def __len__(self):
         return self.size
