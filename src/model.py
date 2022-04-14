@@ -116,7 +116,7 @@ def print_topology(model): summary(model, (1, 128, 128))
 
 
 def execute():
-    dataset = data.Characters(data.PATH_TO_DATA_SHORT, 128, 128, 1)
+    dataset = data.Characters(data.PATH_TO_DATA, 100, 128, 128, 1)
     train_data, valid, test = data.split(dataset, batch_size=32)
 
     model = train(Recognizer(), train_data, valid)
