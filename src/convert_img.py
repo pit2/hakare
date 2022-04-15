@@ -145,10 +145,10 @@ def read_hdf5(filename):
         print(len(data))
 
 
-# read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9-1000.hdf5")
+# read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9-128x128.hdf5")
 
 # convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
-#                "/Volumes/MACBACKUP/DataSets/ETL-9.hdf5",
+#                "/Volumes/MACBACKUP/DataSets/ETL-9-128x128.hdf5",
 #                "data/ETL9-labels-hdf5.csv")
 
 # convert_to_csv("/Volumes/MACBACKUP/DataSets/images/ETL9G",

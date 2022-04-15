@@ -3,102 +3,65 @@ import numpy as np
 import h5py
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
+import math
 
-PATH_TO_DATA = "/Volumes/MACBACKUP/DataSets/ETL-9.hdf5"
+PATH_TO_DATA = "/Volumes/MACBACKUP/DataSets/ETL-9-128x128.hdf5"
 PATH_TO_DATA_SHORT = "/Volumes/MACBACKUP/DataSets/ETL-9-1000.hdf5"
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class Characters(Dataset):
-    def __init__(self, path, width, height, channels):
+    def __init__(self, path, num_chunks, width, height, channels):
         self.path = path
+        self.cache_idx = []
         self.img_data = None
         self.label_data = None
+        self.file = None
         self.width = width
         self.height = height
         self.channels = channels
+        self.chunks = num_chunks
         with h5py.File(self.path, "r") as file:
-            self.size = len(file["images"])
+            self.size = (int)(len(file["images"]))
+        self.chunk_size = (int)(math.floor(self.size / self.chunks))
 
     def __getitem__(self, index):
-        if self.img_data is None:
-            with h5py.File(self.path, "r") as file:
-                self.img_data = torch.tensor(np.array(file["images"]))
-                self.img_data = self.img_data / 255
-                self.img_data = self.img_data.view(-1,
-                                                   self.channels, self. width, self.height)
-                # print(f"Data shape in getitem: {self.img_data.shape}")
-                self.label_data = torch.tensor(
-                    np.array(file["labels"])).squeeze()
+        if self.file is None:
+            self.file = h5py.File(self.path, "r")
+            self.img_data = self.file["images"]
+            self.label_data = self.file["labels"]
+
         return self.img_data[index], self.label_data[index]
 
     def __len__(self):
         return self.size
 
 
-class CharactersWithChache(Dataset):
-    """Dataset structure for labeled kanji, hiragana, katakana  images.
-    Unfinished - implements manual caching
+def transform(imgs, labels, channels=1, width=128, height=128):
+    """Transform slice of img/label hdf5 file into tensor,
+    reshaped into (-1, channels, width, height).
+
+    Parameters:
+    - imgs (img group of hdf5 file) - images group in hdf5 file.
+    - labels (label group of hdf5 file) - labels group in hdf5 file.
+    - channels (int) - number of channels for the image data.
+    - width (int) - width of image data.
+    - height (int) - height of image data.
+
+    Returns
+    - image tensor of shape (-1, channels, width, height), where the first dimension is
+        the batch size.
+    - label tensor of shape (-1, 1) (squeezed).
     """
-
-    def __init__(self, path, width, height, channels, data_cache_size=3):
-        """Create new dataset."""
-
-        self.data_info = []
-        self.data_cache = []
-        self.data_cache_size = data_cache_size
-        self._add_data_infos(path)
-        """with h5py.File(path, "r") as file:
-            keys = list(file.keys())
-            img_key = keys[0]  # image data
-            self.img_data = torch.tensor(list(file[img_key]))
-            print("Loaded image data")
-            label_key = keys[1]
-            self.label_data = torch.tensor(list(file[label_key]))
-            print("file loading complete")"""
-
-        self.height = height
-        self.width = width
-        self.channels = channels
-
-    def _add_data_infos(self, path):
-        print_first = True
-        with h5py.File(path, "r") as file:
-            for gname, group in file.items():
-                for data in group:
-                    idx = -1
-                    self.data_info.append(
-                        {"type": data.dtype, "shape": data.shape, "cache_idx": idx})
-                    if print_first:
-                        print_first = False
-
-    def _add_to_cache(self, data):
-        self.data_cache.append(data)
-        return len(self.data_cache) - 1
-
-    def _load_data(self, path):
-        with h5py.File(path, "r") as file:
-            for gname, group in file.items():
-                for data in group:
-                    cache_idx = self._add_to_cache(data)
-                    file_idx = next(i for i, v in enumerate(self.data_info))
-                    self.data_info[file_idx +
-                                   cache_idx]["cache_idx"] = cache_idx
-
-        print(f"Removal keys: {list(self.data_cache)}")
-        if len(self.data_cache) > self.data_cache_size:
-            pass
-
-    def __len__(self):
-        """Returns # of images in data set."""
-        return len(self.img_data)
-
-    def __getitem__(self, index):
-        """Returns tuple (image, label) at given index."""
-        return self.img_data[index], self.label_data[index]
+    img = torch.tensor(np.array(imgs))
+    img = img / 255
+    img = img.view(-1, channels, width, height)
+    label = torch.tensor(np.array(labels)).squeeze()
+    return img, label
 
 
-def split(data, batch_size=64, train=0.5, valid=0.2):
+def split(data, batch_size=64, train=0.5, valid=0.2, num_workers=0):
+    """Split data into train/valid/test sets of given batch size. Returns iterable generators."""
     train_size = int(train * len(data))
     valid_size = int(valid * len(data))
     test_size = len(data) - train_size - valid_size
@@ -106,11 +69,11 @@ def split(data, batch_size=64, train=0.5, valid=0.2):
         data, (train_size, valid_size, test_size))
 
     train_generator = DataLoader(
-        train_data, batch_size=batch_size, shuffle=True)
+        train_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     valid_generator = DataLoader(
-        valid_data, batch_size=batch_size, shuffle=True)
+        valid_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
     test_generator = DataLoader(
-        test_data, batch_size=batch_size, shuffle=True)
+        test_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
 
     return train_generator, valid_generator, test_generator
 

@@ -37,7 +37,7 @@ class Recognizer(torch.nn.Module):
 
 
 def train(model, train_gen, valid_gen, params={"lr": 1e-1, "weight_decay": 1e-8},
-          epochs=10, report=False):
+          epochs=10, report=True):
     """Using adams optimizer, train and validate the model. Returns the model with the smallest
     loss on the validation set after given number of epochs.
 
@@ -58,7 +58,7 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-1, "weight_decay": 1e-8}
 
     for i in range(epochs):
         model, train_loss = _step(model, train_gen, params)
-        model.train_losses.append(train_loss)
+        # model.train_losses.append(train_loss)
 
         valid_loss = evaluate(model, valid_gen)
 
@@ -66,8 +66,8 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-1, "weight_decay": 1e-8}
             print(
                 f"Epoch {i} --- test error: {train_loss} --- validation error: {valid_loss}")
 
-        if model.min_valid_loss > valid_loss:
-            best_model = model
+        # if model.min_valid_loss > valid_loss:
+        best_model = model
 
     return best_model
 
@@ -77,17 +77,24 @@ def _step(model, train_gen, params):
     optimizer = torch.optim.Adam(
         model.parameters(), lr=params["lr"], weight_decay=params["weight_decay"])
     losses = []
+    i = 0
     for img, target in train_gen:
+        img, target = data.transform(img, target, 1, 128, 128)
         img = img.to(DEVICE)
         target = target.to(DEVICE)
+
         predict = model(img)
         loss = model.loss_fn(predict, target)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        losses.append(loss.item())
+        losses.append(loss.detach().item())
+        del img, target, loss
+        torch.cuda.empty_cache()
+        print(f"Step iteration: {i}")
+        i = i + 1
 
-    return model, np.mean(losses)
+    return model  # , np.mean(losses)
 
 
 def evaluate(model, test_gen):
@@ -103,8 +110,9 @@ def evaluate(model, test_gen):
     losses = []
     with torch.no_grad():
         for img, target in test_gen:
-            img.to(DEVICE)
-            target.to(DEVICE)
+            img, target = data.transform(img, target, 1, 128, 128)
+            img = img.to(DEVICE)
+            target = target.to(DEVICE)
             predict = model(img)
             loss = model.loss_fn(predict, target)
             losses.append(loss.item())
@@ -116,8 +124,9 @@ def print_topology(model): summary(model, (1, 128, 128))
 
 
 def execute():
-    dataset = data.Characters(data.PATH_TO_DATA_SHORT, 128, 128, 1)
-    train_data, valid, test = data.split(dataset, batch_size=32)
+    torch.cuda.empty_cache()
+    dataset = data.Characters(data.PATH_TO_DATA, 100, 128, 128, 1)
+    train_data, valid, test = data.split(dataset, batch_size=8)
 
     model = train(Recognizer(), train_data, valid)
     model.test_loss = evaluate(model, test)
