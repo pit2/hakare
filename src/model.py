@@ -2,6 +2,8 @@ import torch
 import data
 import numpy as np
 from torchsummary import summary
+import matplotlib.pyplot as plt
+
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -12,31 +14,41 @@ class Recognizer(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
+        self.FC_DIM = 256 * 8 * 8
         self.cnn = torch.nn.Sequential(
-            torch.nn.Conv2d(1, 32, kernel_size=3, stride=2, padding=1),
+            torch.nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=3),
+            torch.nn.BatchNorm2d(32),
             torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
-            torch.nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            torch.nn.Dropout2d(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
+            torch.nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=3),
+            torch.nn.BatchNorm2d(64),
             torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
-            torch.nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
+            torch.nn.Dropout2d(),
+            torch.nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=3),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
-            #
+            torch.nn.Dropout2d(),
+            torch.nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=3),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.ReLU(),
+            torch.nn.Dropout2d()
         )
-        self.fc = torch.nn.Linear(128 * 4 * 4, 3036)
+        self.fc = torch.nn.Linear(self.FC_DIM, 3036)
         self.train_losses = []
         self.valid_losses = []
         self.test_loss = np.inf
         self.loss_fn = torch.nn.CrossEntropyLoss()
         self.min_valid_loss = np.inf
+        self.epochs = 0
 
     def forward(self, x):
         x = self.cnn(x)
-        x = x.view(-1, 128 * 4 * 4)
+        x = x.view(-1, self.FC_DIM)
         return self.fc(x)
 
 
-def train(model, train_gen, valid_gen, params={"lr": 1e-1, "weight_decay": 1e-8},
+def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-8},
           epochs=10, report=True):
     """Using adams optimizer, train and validate the model. Returns the model with the smallest
     loss on the validation set after given number of epochs.
@@ -56,18 +68,26 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-1, "weight_decay": 1e-8}
     model.train()
     best_model = model
 
-    for i in range(epochs):
+    for i in range(model.epochs, model.epochs + epochs):
         model, train_loss = _step(model, train_gen, params)
-        # model.train_losses.append(train_loss)
+        model.train_losses.append(train_loss)
 
         valid_loss = evaluate(model, valid_gen)
+        model.valid_losses.append(valid_loss)
 
         if report:
             print(
                 f"Epoch {i} --- test error: {train_loss} --- validation error: {valid_loss}")
+            if i > 0 and i % 10 == 0:
+                x_axis = [x for x in range(model.epochs + i + 1)]
+                print(x_axis)
+                plt.plot(x_axis, model.train_losses, label="train loss")
+                plt.plot(x_axis, model.valid_losses, label="valid loss")
+                plt.legend()
+                plt.show()
 
-        # if model.min_valid_loss > valid_loss:
-        best_model = model
+        if model.min_valid_loss > valid_loss:
+            best_model = model
 
     return best_model
 
@@ -77,7 +97,6 @@ def _step(model, train_gen, params):
     optimizer = torch.optim.Adam(
         model.parameters(), lr=params["lr"], weight_decay=params["weight_decay"])
     losses = []
-    i = 0
     for img, target in train_gen:
         img, target = data.transform(img, target, 1, 128, 128)
         img = img.to(DEVICE)
@@ -91,10 +110,8 @@ def _step(model, train_gen, params):
         losses.append(loss.detach().item())
         del img, target, loss
         torch.cuda.empty_cache()
-        print(f"Step iteration: {i}")
-        i = i + 1
 
-    return model  # , np.mean(losses)
+    return model, np.mean(losses)
 
 
 def evaluate(model, test_gen):
@@ -125,12 +142,14 @@ def print_topology(model): summary(model, (1, 128, 128))
 
 def execute():
     torch.cuda.empty_cache()
-    dataset = data.Characters(data.PATH_TO_DATA, 100, 128, 128, 1)
+    dataset = data.Characters(data.PATH_TO_DATA_SHORT, 100, 128, 128, 1)
     train_data, valid, test = data.split(dataset, batch_size=8)
 
-    model = train(Recognizer(), train_data, valid)
+    model = train(Recognizer(), train_data, valid, params={"lr": 0.2, "weight_decay": 1e-8},
+                  epochs=3, report=True)
     model.test_loss = evaluate(model, test)
     print(model.test_loss)
 
 
+print_topology(Recognizer())
 execute()
