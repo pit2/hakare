@@ -14,18 +14,27 @@ class Recognizer(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
+        self.FC_DIM = 256 * 8 * 8
         self.cnn = torch.nn.Sequential(
-            torch.nn.Conv2d(1, 32, kernel_size=3, stride=2, padding=1),
+            torch.nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=3),
+            torch.nn.BatchNorm2d(32),
             torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
-            torch.nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1),
+            torch.nn.Dropout2d(),
+            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=1),
+            torch.nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=3),
+            torch.nn.BatchNorm2d(64),
             torch.nn.ReLU(),
-            torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0),
-            torch.nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),
+            torch.nn.Dropout2d(),
+            torch.nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=3),
+            torch.nn.BatchNorm2d(128),
             torch.nn.ReLU(),
-            #
+            torch.nn.Dropout2d(),
+            torch.nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=3),
+            torch.nn.BatchNorm2d(256),
+            torch.nn.ReLU(),
+            torch.nn.Dropout2d()
         )
-        self.fc = torch.nn.Linear(128 * 4 * 4, 3036)
+        self.fc = torch.nn.Linear(self.FC_DIM, 3036)
         self.train_losses = []
         self.valid_losses = []
         self.test_loss = np.inf
@@ -35,11 +44,11 @@ class Recognizer(torch.nn.Module):
 
     def forward(self, x):
         x = self.cnn(x)
-        x = x.view(-1, 128 * 4 * 4)
+        x = x.view(-1, self.FC_DIM)
         return self.fc(x)
 
 
-def train(model, train_gen, valid_gen, params={"lr": 1e-1, "weight_decay": 1e-8},
+def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-8},
           epochs=10, report=True):
     """Using adams optimizer, train and validate the model. Returns the model with the smallest
     loss on the validation set after given number of epochs.
@@ -133,13 +142,14 @@ def print_topology(model): summary(model, (1, 128, 128))
 
 def execute():
     torch.cuda.empty_cache()
-    dataset = data.Characters(data.PATH_TO_DATA, 100, 128, 128, 1)
-    train_data, valid, test = data.split(dataset, batch_size=512)
+    dataset = data.Characters(data.PATH_TO_DATA_SHORT, 100, 128, 128, 1)
+    train_data, valid, test = data.split(dataset, batch_size=8)
 
     model = train(Recognizer(), train_data, valid, params={"lr": 0.2, "weight_decay": 1e-8},
-                  epochs=25, report=True)
+                  epochs=3, report=True)
     model.test_loss = evaluate(model, test)
     print(model.test_loss)
 
 
+print_topology(Recognizer())
 execute()
