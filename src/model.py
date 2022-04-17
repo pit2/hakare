@@ -2,6 +2,7 @@ import torch
 import data
 import numpy as np
 from torchsummary import summary
+from torchmetrics import Accuracy
 import matplotlib.pyplot as plt
 
 
@@ -37,6 +38,8 @@ class Recognizer(torch.nn.Module):
         self.fc = torch.nn.Linear(self.FC_DIM, 3036)
         self.train_losses = []
         self.valid_losses = []
+        self.valid_accuracy = []
+        self.test_accuracy = 0
         self.test_loss = np.inf
         self.loss_fn = torch.nn.CrossEntropyLoss()
         self.min_valid_loss = np.inf
@@ -72,12 +75,14 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-8}
         model, train_loss = _step(model, train_gen, params)
         model.train_losses.append(train_loss)
 
-        valid_loss = evaluate(model, valid_gen)
+        valid_loss, accuracy = evaluate(model, valid_gen)
         model.valid_losses.append(valid_loss)
+        model.valid_accuracy.append(accuracy)
 
         if report:
             print(
                 f"Epoch {i} --- test error: {train_loss} --- validation error: {valid_loss}")
+            print(f"Accuracy on validation set: {accuracy}")
             if i > 0 and i % 10 == 0:
                 x_axis = [x for x in range(model.epochs + i + 1)]
                 print(x_axis)
@@ -118,13 +123,17 @@ def evaluate(model, test_gen):
     """Evaluates the model and returns the loss.
 
     Parameters:
-    model (Recognizer): Model to be evaluated.
-    test_gen (DataLoader): Test (or validation) data to evaluate the model.
+        model (Recognizer): Model to be evaluated.
+        test_gen (DataLoader): Test (or validation) data to evaluate the model.
 
-    Returns mean loss on test/validation data.
+    Returns
+        mean loss on test/validation data.
+        mean accuracy as percentage of correct predictions.
     """
     model.eval()
     losses = []
+    accuracies = []
+    accuracy = Accuracy().to(DEVICE)
     with torch.no_grad():
         for img, target in test_gen:
             img, target = data.transform(img, target, 1, 128, 128)
@@ -133,8 +142,9 @@ def evaluate(model, test_gen):
             predict = model(img)
             loss = model.loss_fn(predict, target)
             losses.append(loss.item())
+            accuracies.append(accuracy(predict, target).cpu().item())
 
-    return np.mean(losses)
+    return np.mean(losses), np.mean(accuracies)
 
 
 def print_topology(model): summary(model, (1, 128, 128))
@@ -147,8 +157,10 @@ def execute():
 
     model = train(Recognizer(), train_data, valid, params={"lr": 0.2, "weight_decay": 1e-8},
                   epochs=3, report=True)
-    model.test_loss = evaluate(model, test)
-    print(model.test_loss)
+    model.test_loss, model.test_accuracy = evaluate(model, test)
+    print(f"Loss on test set: {model.test_loss}")
+    print(f"Accuracy on test set: {model.test_accuracy * 100}%")
+    return model
 
 
 print_topology(Recognizer())
