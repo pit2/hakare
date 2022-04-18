@@ -54,7 +54,7 @@ class Recognizer(torch.nn.Module):
         return self.fc(x)
 
 
-def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-8},
+def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4},
           epochs=10, report=True):
     """Using adams optimizer, train and validate the model. Returns the model with the smallest
     loss on the validation set after given number of epochs.
@@ -158,7 +158,7 @@ def execute():
     dataset = data.Characters(data.PATH_TO_DATA_SHORT, 100, 128, 128, 1)
     train_data, valid, test = data.split(dataset, batch_size=8)
 
-    model = train(Recognizer(), train_data, valid, params={"lr": 0.2, "weight_decay": 1e-6},
+    model = train(Recognizer(), train_data, valid, params={"lr": 0.2, "weight_decay": 1e-4},
                   epochs=3, report=True)
     model.test_loss, model.test_accuracy = evaluate(model, test)
     print(f"Loss on test set: {model.test_loss}")
