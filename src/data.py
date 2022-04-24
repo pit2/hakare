@@ -1,3 +1,4 @@
+from statistics import mode
 import torch
 import numpy as np
 import h5py
@@ -57,34 +58,40 @@ def transform(imgs, labels, mean, std, channels=1, width=128, height=128):
     - label tensor of shape (-1, 1) (squeezed).
     """
 
+    #imgs = imgs / 255
+    imgs = imgs.view(-1, channels, width, height)
+    imgs = imgs.float()
+    transform2 = transforms.Normalize(mean=mean, std=std)
+    transform = transforms.Compose([
+        transforms.ToPILImage(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=mean, std=std)
+    ])
+    #for i in range(imgs.size(0)):
+        # imgs[i] = imgs[i].view(128, 128)
+     #   imgs[i] = transform(imgs[i])
     imgs = imgs / 255
-    transform = transforms.Normalize(mean, std)
-    imgs = imgs.view(-1, channels, width, height)
-    imgs = transform(imgs)
-    imgs = imgs.view(-1, channels, width, height)
-
-    labels = labels.squeeze()
+    print(imgs[0])
+    imgs = transform2(imgs)
+    print(imgs[0])
+    print(f"Image mean: {torch.mean(imgs[0])}")
+    print(f"Image std: {torch.std(imgs[0])}")
+    labels = labels.long().squeeze()
     return imgs, labels
 
 
 def get_mean_std(iter):
-    mean = torch.empty(1)
-    var = torch.empty(1)
+    means = []
+    stds = []
     for imgs, _ in iter:
+        imgs = imgs.view(-1, 128 * 128)
         imgs = imgs / 255
-        mean, var = get_mean_std_(imgs, mean, var)
+        mean = torch.mean(imgs)
+        std = torch.std(imgs)
+        means.append(mean)
+        stds.append(std)
 
-    return mean / len(iter), torch.sqrt(var / (len(iter) * 128 * 128))
-
-
-def get_mean_std_(imgs, mean, var):
-
-    imgs = imgs.view(-1, 128 * 128)
-    batch_size, num_of_px = imgs.shape
-    mean += imgs.mean(1).sum(0)
-    var += ((imgs - mean) ** 2).sum([0, 1])
-
-    return mean, var
+    return np.array(means).mean(axis=0), np.array(stds).mean(axis=0)
 
 
 def split(data, batch_size=64, train=0.5, valid=0.2, num_workers=0):

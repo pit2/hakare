@@ -111,10 +111,6 @@ def _step(model, train_gen, params, stats):
         img = img.to(DEVICE)
         target = target.to(DEVICE)
 
-        mean, std = data.get_mean_std(train_gen)
-        print(f"Mean in training: {mean}")
-        print(f"Std in training: {std}")
-
         predict = model(img)
         loss = model.loss_fn(predict, target)
         optimizer.zero_grad()
@@ -128,7 +124,7 @@ def _step(model, train_gen, params, stats):
 
 
 def evaluate(model, test_gen, stats):
-    """Evaluates the model and returns the loss.
+    """Evaluate the model and return the loss.
 
     Parameters:
         model (Recognizer): Model to be evaluated.
@@ -147,13 +143,8 @@ def evaluate(model, test_gen, stats):
             img, target = data.transform(
                 img, target, stats["mean"], stats["std"], 1, 128, 128)
             img = img.to(DEVICE)
-            mean, std = data.get_mean_std(test_gen)
-            print(f"Mean in eval: {mean}")
-            print(f"Std in eval: {std}")
             target = target.to(DEVICE)
             predict = model(img)
-            # print(predict.shape)
-            # print(target.shape)
             loss = model.loss_fn(predict, target)
             losses.append(loss.item())
             accuracies.append(accuracy(predict, target).cpu().item())
@@ -170,7 +161,6 @@ def execute():
     print(f"Size of dataset: {len(dataset)}")
     train_data, valid, test = data.split(dataset, batch_size=5)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
-    print(f"Computed mean: {dataset.mean} --- computed std: {dataset.std}")
     count = 0
     mean = torch.empty(1)
     std_aux = torch.empty(1)
