@@ -161,16 +161,7 @@ def execute():
     print(f"Size of dataset: {len(dataset)}")
     train_data, valid, test = data.split(dataset, batch_size=5)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
-    count = 0
-    mean = torch.empty(1)
-    std_aux = torch.empty(1)
-   # for imgs, labels in train_data:
-    #    imgs, labels = data.transform(imgs, labels, dataset.mean, dataset.std, 1, 128, 128)
-#
-     #   mean, std_aux, count = data.get_mean_std_(imgs, count, mean, std_aux)
-     #   print(f"Mean after transformation: {mean} --- std after transformation: {std_aux}")
     stats_dict = {"mean": dataset.mean, "std": dataset.std}
-    print(f"Mean before training: {dataset.mean} --- std before training: {dataset.std}")
 
     model = train(Recognizer(), train_data, valid, params={"lr": 0.2, "weight_decay": 1e-4},
                   epochs=1, stats=stats_dict, report=True)

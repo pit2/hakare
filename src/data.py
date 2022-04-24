@@ -1,4 +1,3 @@
-from statistics import mode
 import torch
 import numpy as np
 import h5py
@@ -58,24 +57,11 @@ def transform(imgs, labels, mean, std, channels=1, width=128, height=128):
     - label tensor of shape (-1, 1) (squeezed).
     """
 
-    #imgs = imgs / 255
     imgs = imgs.view(-1, channels, width, height)
     imgs = imgs.float()
-    transform2 = transforms.Normalize(mean=mean, std=std)
-    transform = transforms.Compose([
-        transforms.ToPILImage(),
-        transforms.ToTensor(),
-        transforms.Normalize(mean=mean, std=std)
-    ])
-    #for i in range(imgs.size(0)):
-        # imgs[i] = imgs[i].view(128, 128)
-     #   imgs[i] = transform(imgs[i])
+    transform = transforms.Normalize(mean=mean, std=std)
     imgs = imgs / 255
-    print(imgs[0])
-    imgs = transform2(imgs)
-    print(imgs[0])
-    print(f"Image mean: {torch.mean(imgs[0])}")
-    print(f"Image std: {torch.std(imgs[0])}")
+    imgs = transform(imgs)
     labels = labels.long().squeeze()
     return imgs, labels
 
