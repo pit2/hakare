@@ -7,6 +7,7 @@ import math
 
 PATH_TO_DATA = "/Volumes/MACBACKUP/DataSets/ETL-9-128x128.hdf5"
 PATH_TO_DATA_SHORT = "/Volumes/MACBACKUP/DataSets/ETL-9-1000.hdf5"
+PATH_TO_DATA_MINI = "/Volumes/MACBACKUP/DataSets/ETL-9-128x128-10.hdf5"
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
@@ -21,6 +22,8 @@ class Characters(Dataset):
         self.height = height
         self.channels = channels
         self.chunks = num_chunks
+        self.mean = np.nan
+        self.std = np.nan
         with h5py.File(self.path, "r") as file:
             self.size = (int)(len(file["images"]))
         self.chunk_size = (int)(math.floor(self.size / self.chunks))
@@ -37,7 +40,7 @@ class Characters(Dataset):
         return self.size
 
 
-def transform(imgs, labels, channels=1, width=128, height=128):
+def transform(imgs, labels, mean, std, channels=1, width=128, height=128):
     """Transform slice of img/label hdf5 file into tensor,
     reshaped into (-1, channels, width, height).
 
@@ -53,11 +56,41 @@ def transform(imgs, labels, channels=1, width=128, height=128):
         the batch size.
     - label tensor of shape (-1, 1) (squeezed).
     """
-    img = torch.tensor(np.array(imgs))
-    img = img / 255
-    img = img.view(-1, channels, width, height)
-    label = torch.tensor(np.array(labels)).squeeze()
-    return img, label
+
+    imgs = imgs / 255
+    transform = transforms.Normalize(mean, std)
+    imgs = imgs.view(-1, channels, width, height)
+    imgs = transform(imgs)
+    imgs = imgs.view(-1, channels, width, height)
+
+    labels = labels.squeeze()
+    return imgs, labels
+
+
+def get_mean_std(iter):
+    count = 0
+    mean = torch.empty(1)
+    std_aux = torch.empty(1)
+    for imgs, _ in iter:
+        imgs = imgs / 255
+        mean, std_aux, count = get_mean_std_(imgs, count, mean, std_aux)
+
+    return mean, torch.sqrt((std_aux - mean) ** 2)
+
+
+def get_mean_std_(imgs, count, mean, std_aux):
+
+    imgs = imgs.view(-1, 128 * 128)
+    _, num_of_px = imgs.shape
+    num = count + num_of_px
+    sum_ = torch.sum(imgs)
+    sum_of_squares = torch.sum(imgs ** 2)
+
+    mean = (count * mean + sum_) / num
+    std_aux = (count * std_aux + sum_of_squares) / num
+    count += num_of_px
+
+    return mean, std_aux, count
 
 
 def split(data, batch_size=64, train=0.5, valid=0.2, num_workers=0):

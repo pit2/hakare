@@ -10,7 +10,7 @@ import h5py
 def img_test():
     """Opens an image, transforms it into tensor, and saves the tensor back as image file."""
 
-    image = Image.open("data/images/ETL1/0x003d/059245.png")
+    image = Image.open("data/tmp/example.png")
 
     image.show()
 
@@ -40,7 +40,7 @@ def convert_img_to_array(directory, img_name, labels=[], resize=(128, 128)):
         labels (list of strings): Duplicate-free list of strings of previously read labels.
 
     Returns:
-        nparray - image converted to 1D array plus numeric label at last position.
+        row - image converted to 1D array.
         ind (int) - index of label
         labels parameter (list of strings) augmented by the newly-added label.
     """
@@ -135,6 +135,14 @@ def convert_to_hdf5(directory, path_to_hdf5, path_to_labels_list, labels=[], lim
     write_labels(path_to_labels_list, labels)
 
 
+def normalize(array, axis=None):
+    mean = np.mean(array, axis=axis, keepdims=True)
+    print(mean)
+    std = np.sqrt(((array - mean)**2).mean(axis=axis, keepdims=True))
+    print(std)
+    return (array - mean) / std
+
+
 def read_hdf5(filename):
     """test function to read and show image loaded from hdf5 file."""
     with h5py.File(filename, "r") as f:
@@ -145,11 +153,27 @@ def read_hdf5(filename):
         print(len(data))
 
 
+def test_shape():
+    image = Image.open("data/tmp/example.png")
+
+    image.show()
+
+    arr = np.array(image)
+
+    print(arr.shape)
+
+    arr_norm = normalize(arr)
+
+    print(arr_norm)
+
+    Image.fromarray(arr_norm).show()
+
+
 # read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9-128x128.hdf5")
 
-# convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
-#                "/Volumes/MACBACKUP/DataSets/ETL-9-128x128.hdf5",
-#                "data/ETL9-labels-hdf5.csv")
+convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
+                "/Volumes/MACBACKUP/DataSets/ETL-9-128x128-10.hdf5",
+                "data/ETL9-labels-10.csv", [], 10)
 
 # convert_to_csv("/Volumes/MACBACKUP/DataSets/images/ETL9G",
 #       "/Volumes/MACBACKUP/DataSets/ETL-9-examples.csv", "data/ETL9b-labels-examples.csv", [], 100)
