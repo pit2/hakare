@@ -55,7 +55,7 @@ class Recognizer(torch.nn.Module):
 
 
 def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4},
-          epochs=10, report=True):
+          stats={"mean": 0, "std": 1}, epochs=10, report=True):
     """Using adams optimizer, train and validate the model. Returns the model with the smallest
     loss on the validation set after given number of epochs.
 
@@ -75,10 +75,10 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4}
     best_model = model
 
     for i in range(model.epochs, model.epochs + epochs):
-        model, train_loss = _step(model, train_gen, params)
+        model, train_loss = _step(model, train_gen, params, stats)
         model.train_losses.append(train_loss)
 
-        valid_loss, accuracy = evaluate(model, valid_gen)
+        valid_loss, accuracy = evaluate(model, valid_gen, stats)
         model.valid_losses.append(valid_loss)
         model.valid_accuracy.append(accuracy)
 
@@ -100,13 +100,14 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4}
     return best_model
 
 
-def _step(model, train_gen, params):
+def _step(model, train_gen, params, stats):
     """Execute one training step (one batch) and return updated model and mean loss."""
     optimizer = torch.optim.Adam(
         model.parameters(), lr=params["lr"], weight_decay=params["weight_decay"])
     losses = []
     for img, target in train_gen:
-        img, target = data.transform(img, target, 1, 128, 128)
+        img, target = data.transform(
+            img, target, stats["mean"], stats["std"], 1, 128, 128)
         img = img.to(DEVICE)
         target = target.to(DEVICE)
 
@@ -122,8 +123,8 @@ def _step(model, train_gen, params):
     return model, np.mean(losses)
 
 
-def evaluate(model, test_gen):
-    """Evaluates the model and returns the loss.
+def evaluate(model, test_gen, stats):
+    """Evaluate the model and return the loss.
 
     Parameters:
         model (Recognizer): Model to be evaluated.
@@ -139,7 +140,8 @@ def evaluate(model, test_gen):
     accuracy = Accuracy().to(DEVICE)
     with torch.no_grad():
         for img, target in test_gen:
-            img, target = data.transform(img, target, 1, 128, 128)
+            img, target = data.transform(
+                img, target, stats["mean"], stats["std"], 1, 128, 128)
             img = img.to(DEVICE)
             target = target.to(DEVICE)
             predict = model(img)
@@ -155,16 +157,21 @@ def print_topology(model): summary(model, (1, 128, 128))
 
 def execute():
     torch.cuda.empty_cache()
-    dataset = data.Characters(data.PATH_TO_DATA_SHORT, 100, 128, 128, 1)
-    train_data, valid, test = data.split(dataset, batch_size=8)
+    dataset = data.Characters(data.PATH_TO_DATA_MINI, 100, 128, 128, 1)
+    print(f"Size of dataset: {len(dataset)}")
+    train_data, valid, test = data.split(dataset, batch_size=5)
+    dataset.mean, dataset.std = data.get_mean_std(train_data)
+    stats_dict = {"mean": dataset.mean, "std": dataset.std}
 
     model = train(Recognizer(), train_data, valid, params={"lr": 0.2, "weight_decay": 1e-4},
-                  epochs=3, report=True)
-    model.test_loss, model.test_accuracy = evaluate(model, test)
+                  epochs=1, stats=stats_dict, report=True)
+    model.test_loss, model.test_accuracy = evaluate(
+        model, test, stats=stats_dict)
     print(f"Loss on test set: {model.test_loss}")
     print(f"Accuracy on test set: {model.test_accuracy * 100}%")
+
     return model
 
 
-print_topology(Recognizer())
+# print_topology(Recognizer())
 execute()
