@@ -68,29 +68,23 @@ def transform(imgs, labels, mean, std, channels=1, width=128, height=128):
 
 
 def get_mean_std(iter):
-    count = 0
     mean = torch.empty(1)
-    std_aux = torch.empty(1)
+    var = torch.empty(1)
     for imgs, _ in iter:
         imgs = imgs / 255
-        mean, std_aux, count = get_mean_std_(imgs, count, mean, std_aux)
+        mean, var = get_mean_std_(imgs, mean, var)
 
-    return mean, torch.sqrt((std_aux - mean) ** 2)
+    return mean / len(iter), torch.sqrt(var / (len(iter) * 128 * 128))
 
 
-def get_mean_std_(imgs, count, mean, std_aux):
+def get_mean_std_(imgs, mean, var):
 
     imgs = imgs.view(-1, 128 * 128)
-    _, num_of_px = imgs.shape
-    num = count + num_of_px
-    sum_ = torch.sum(imgs)
-    sum_of_squares = torch.sum(imgs ** 2)
+    batch_size, num_of_px = imgs.shape
+    mean += imgs.mean(1).sum(0)
+    var += ((imgs - mean) ** 2).sum([0, 1])
 
-    mean = (count * mean + sum_) / num
-    std_aux = (count * std_aux + sum_of_squares) / num
-    count += num_of_px
-
-    return mean, std_aux, count
+    return mean, var
 
 
 def split(data, batch_size=64, train=0.5, valid=0.2, num_workers=0):

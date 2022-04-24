@@ -174,11 +174,11 @@ def execute():
     count = 0
     mean = torch.empty(1)
     std_aux = torch.empty(1)
-    for imgs, labels in train_data:
-        imgs, labels = data.transform(imgs, labels, dataset.mean, dataset.std, 1, 128, 128)
-
-        mean, std_aux, count = data.get_mean_std_(imgs, count, mean, std_aux)
-        print(f"Mean after transformation: {mean} --- std after transformation: {std_aux}")
+   # for imgs, labels in train_data:
+    #    imgs, labels = data.transform(imgs, labels, dataset.mean, dataset.std, 1, 128, 128)
+#
+     #   mean, std_aux, count = data.get_mean_std_(imgs, count, mean, std_aux)
+     #   print(f"Mean after transformation: {mean} --- std after transformation: {std_aux}")
     stats_dict = {"mean": dataset.mean, "std": dataset.std}
     print(f"Mean before training: {dataset.mean} --- std before training: {dataset.std}")
 
