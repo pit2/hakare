@@ -57,16 +57,24 @@ class Recognizer(torch.nn.Module):
 
             dim = 128
             MIN_DIM = 4
-            num_conv = 7 # trial.suggest_int("num_conv_layers", 2, 8)
+            num_conv = trial.suggest_int("num_conv_layers", 2, 8)
             num_pool = math.floor(num_conv / 2)
-            out_channels = (int) (trial.suggest_categorical("output_channels_of_first_conv", [8, 16, 32]))
+            if num_conv <= 4:
+                out_channels = trial.suggest_categorical("output_channels_of_first_conv", [8, 16, 32])
+            elif num_conv <= 6:
+                out_channels = 8
+            elif num_conv == 7:
+                out_channels = 4
+            else:
+                out_channels = 2
             dropout_rate = trial.suggest_loguniform("dropout rate", 0.1, 0.7)
-            kernel_size_1 = (int) (trial.suggest_categorical("kernel size of first conv", [3, 5, 7]))
-            kernel_size_2 = (int) (trial.suggest_categorical("kernel size of second conv", [n for n in [3,5,7] if n <= kernel_size_1 ]))
+            kernel_size_1 = trial.suggest_categorical("kernel size of first conv", [3, 5, 7])
+            kernel_size_2 = trial.suggest_categorical("kernel size of second conv", [n for n in [3, 5, 7] if n <= kernel_size_1 ])
             padding = math.floor(num_conv / 2) - 1
-            stride = 1 if num_conv > 4 else 2
+            stride = 1 if num_conv < 4 else (2 if num_conv <= 6 else 3)
             layers = []
             kernels = [kernel_size_1, kernel_size_2] + [3 for n in range(num_conv - 2)]
+            strides = [stride, stride] + [1 for n in range(num_conv - 2)]
             in_channels = 1
             print(f"Kernels: {kernels}")
             print(f"Pools: {num_pool}")
@@ -75,9 +83,9 @@ class Recognizer(torch.nn.Module):
             print(f"Stride: {stride}")
 
             for i in range(num_conv):
-                new_dim = conv_dim(dim, padding, kernels[i], stride)
+                new_dim = conv_dim(dim, padding, kernels[i], strides[i])
                 if new_dim >= MIN_DIM:
-                    layers.append(torch.nn.Conv2d(in_channels, out_channels, kernel_size=kernels[i], stride=stride, padding=padding))
+                    layers.append(torch.nn.Conv2d(in_channels, out_channels, kernel_size=kernels[i], stride=strides[i], padding=padding))
                     layers.append(torch.nn.BatchNorm2d(out_channels))
                     layers.append(torch.nn.ReLU())
                     layers.append(torch.nn.Dropout2d(dropout_rate))
@@ -85,7 +93,7 @@ class Recognizer(torch.nn.Module):
                     new_dim = conv_dim(dim)
 
                     # add additional pooling if final dim is still too big
-                    if (num_pool >= 1 and new_dim >= MIN_DIM) or (num_pool == 0 and dim >= 16):
+                    if (num_pool >= 1 and new_dim >= MIN_DIM) or (num_pool < 1 and dim >= 12):
                         layers.append(torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0))
                         dim = new_dim
                         num_pool -= 1
@@ -249,4 +257,4 @@ def objective(trial):
 # print_topology(Recognizer())
 study = optuna.create_study(direction="maximize", sampler=optuna.samplers.NSGAIISampler(
     population_size=20, mutation_prob=None, crossover_prob=0.9, swapping_prob=0.5))
-study.optimize(objective, n_trials=1)
+study.optimize(objective, n_trials=5)
