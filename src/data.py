@@ -56,7 +56,8 @@ def transform(imgs, labels, mean, std, channels=1, width=128, height=128):
 
     imgs = imgs.view(-1, channels, width, height)
     imgs = imgs.float()
-    transform = transforms.Normalize(mean=mean, std=std)
+    transform = transforms.Compose([transforms.CenterCrop([104, 104]),
+                                    transforms.Normalize(mean=mean, std=std)])
     imgs = imgs / 255
     imgs = transform(imgs)
     labels = labels.long().squeeze()
@@ -66,8 +67,10 @@ def transform(imgs, labels, mean, std, channels=1, width=128, height=128):
 def get_mean_std(iter):
     means = []
     stds = []
+    crop = transforms.CenterCrop([104, 104])
     for imgs, _ in iter:
         imgs = imgs.view(-1, 128 * 128)
+        imgs = crop(imgs)
         imgs = imgs / 255
         mean = torch.mean(imgs)
         std = torch.std(imgs)
