@@ -60,21 +60,20 @@ class Recognizer(torch.nn.Module):
 
             dim = 128
             MIN_DIM = 4
-            num_conv = trial.suggest_int("num_conv_layers", 2, 8)
+            num_conv = trial.suggest_int("num_conv_layers", 4, 8)
             num_pool = math.floor(num_conv / 2)
-            if num_conv <= 4:
-                out_channels = trial.suggest_categorical("output_channels_of_first_conv",
-                                                         [8, 16, 32])
+            if num_conv <= 5:
+                out_channels = 16
             elif num_conv <= 6:
                 out_channels = 8
-            elif num_conv == 7:
+            elif num_conv <= 7:
                 out_channels = 4
             else:
                 out_channels = 2
-            dropout_rate = trial.suggest_loguniform("dropout rate", 0.1, 0.7)
+            dropout_rate = trial.suggest_loguniform("dropout rate", 0.3, 0.7)
             kernel_size_1 = trial.suggest_categorical("kernel size of first conv", [3, 5, 7])
             kernel_size_2 = trial.suggest_categorical("kernel size of second conv",
-                                                      [n for n in [3, 5, 7] if n <= kernel_size_1])
+                                                      [n for n in [3, 5] if n <= kernel_size_1])
             padding = math.floor(num_conv / 2) - 1
             stride = 1 if num_conv < 4 else (2 if num_conv <= 6 else 3)
             layers = []
@@ -146,12 +145,11 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
     best_model = model
 
     for i in range(model.epochs, model.epochs + epochs):
-        with tqdm(train_gen, unit='batches') as progress:
-            model, train_loss, train_acc = _step(model, train_gen, params, stats)
-            model.train_losses.append(train_loss)
-            model.train_accuracy.append(train_acc)
-            progress.set_postfix(loss=train_loss, accuracy=train_acc, refresh=False)
-            progress.update()
+
+        model, train_loss, train_acc = _step(model, train_gen, params, stats)
+        model.train_losses.append(train_loss)
+        model.train_accuracy.append(train_acc)
+
 
         valid_loss, valid_acc = evaluate(model, valid_gen, stats)
         model.valid_losses.append(valid_loss)
@@ -191,21 +189,24 @@ def _step(model, train_gen, params, stats):
     losses = []
     accuracies = []
     accuracy = Accuracy().to(DEVICE)
-    for img, target in train_gen:
-        img, target = data.transform(
-            img, target, stats["mean"], stats["std"], 1, 128, 128)
-        img = img.to(DEVICE)
-        target = target.to(DEVICE)
+    with tqdm(train_gen, unit='batches') as progress:
+        for img, target in train_gen:
+            img, target = data.transform(
+                img, target, stats["mean"], stats["std"], 1, 128, 128)
+            img = img.to(DEVICE)
+            target = target.to(DEVICE)
 
-        predict = model(img)
-        loss = model.loss_fn(predict, target)
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        losses.append(loss.detach().item())
-        accuracies.append(accuracy(predict, target).cpu().item())
-        # del img, target, loss
-        # torch.cuda.empty_cache()
+            predict = model(img)
+            loss = model.loss_fn(predict, target)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            losses.append(loss.detach().item())
+            accuracies.append(accuracy(predict, target).cpu().item())
+            # del img, target, loss
+            # torch.cuda.empty_cache()
+            progress.set_postfix(loss=np.mean(losses), accuracy=np.mean(accuracies), refresh=False)
+            progress.update()
 
     return model, np.mean(losses), np.mean(accuracies)
 
