@@ -27,7 +27,7 @@ def img_test():
     return img_tensor
 
 
-def convert_img_to_array(directory, img_name, labels=[], resize=(128, 128)):
+def convert_img_to_array(directory, img_name, labels=[], resize=(128, 128), crop=(90, 90)):
     """Convert image to flattened nparray.
 
     Each row contains width*height columns for the actual image data.
@@ -47,6 +47,10 @@ def convert_img_to_array(directory, img_name, labels=[], resize=(128, 128)):
 
     image = Image.open(os.path.join(directory, img_name))
     image = image.resize(resize)
+    width, height = image.size
+    image = image.crop(((width - crop[0]) / 2, (height - crop[1]) / 2,
+                       (width + crop[0]) / 2, (height + crop[1]) / 2))
+
     row = np.array(image).flatten()
     with open(os.path.join(directory, ".char.txt"), "r") as txt_file:
         label = txt_file.read()
@@ -148,7 +152,7 @@ def read_hdf5(filename):
     with h5py.File(filename, "r") as f:
         key = list(f.keys())[0]
         data = np.array(list(f[key]))
-        img = data[0].reshape(128, 128)
+        img = data[30].reshape(90, 90)
         Image.fromarray(img).show()
         print(len(data))
 
@@ -169,11 +173,11 @@ def test_shape():
     Image.fromarray(arr_norm).show()
 
 
-# read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9-128x128.hdf5")
+# read_hdf5("/Volumes/MACBACKUP/DataSets/ETL-9-90x90-10.hdf5")
 
 convert_to_hdf5("/Volumes/MACBACKUP/DataSets/images/ETL9G",
-                "/Volumes/MACBACKUP/DataSets/ETL-9-128x128-10.hdf5",
-                "data/ETL9-labels-10.csv", [], 10)
+                "/Volumes/MACBACKUP/DataSets/ETL-9-90x90.hdf5",
+                "data/ETL9-labels-10.csv")
 
 # convert_to_csv("/Volumes/MACBACKUP/DataSets/images/ETL9G",
 #       "/Volumes/MACBACKUP/DataSets/ETL-9-examples.csv", "data/ETL9b-labels-examples.csv", [], 100)
