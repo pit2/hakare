@@ -1,6 +1,4 @@
-\documentclass[
-    ngerman,american
-    ]{article}
+\documentclass[british,12p]{article}
 
     % ##########################################
     % # Choose the language for the document by editing below line
@@ -14,6 +12,8 @@
     \usepackage{csquotes}
     \usepackage{enumitem}
     \usepackage{titling}
+    \usepackage{setspace}
+    \usepackage{todo}
  
 
     \usepackage[
@@ -36,22 +36,34 @@
         % ##########################################
         }
     
-    \begin{document}
-      \maketitle
-        \begin{abstract}
+\onehalfspacing
+\begin{document}
+	\maketitle
+    \begin{abstract}
 
            
 
-        \end{abstract}
+    \end{abstract}
         
-        \section{Motivation}
-        \section{Problem statement}
-        \section{Methodology and CNN topology}
-        \subsection{Data exploration and preparation}
-        \subsection{The convolutional neural network}
-        \subsection{Hyperparameters optimization}
-        \section{Results}
-        \section{Conclusion}
+    \section{Motivation}
+    
+    \section{Problem statement}
+    \section{Methodology and CNN topology}
+    \subsection{Data exploration and preparation}
+    Our data is extracted from the ETL-9 dataset provided by the Japanese National Institute of Advanced Industrial Science and Technology (AIST)). With the image data originally gathered from 1973 to 1984, the digitalization was not undertaken with machine learning in mind and the format requires some pre-processing in order to be usable for machine learning. The dataset consists of greyscale image-files of hand-written characters written by several writers; each sheet (corresponding to one image file) contains several characters arranged in a grid-like fashion as shows in Fig. XXX\todo{fig original data}. In total, the dataset contains \todo{num images} images of 3036 different characters, including the entire set of hiragana and katakana, and the rest being kanji characters. 
+    	Using the publicly available script \todo{reference}, we first extract the characters present on a sheet into individual files of size 127x128 pixels. This yields a file structure as shown in Fig \todo{file structure}, where each subfolder contains a series of image files representing the same character and a text file whose sole content is the correct label of this character.
+    	
+    	To transform the image files into numerical data suitable for machine learning models, we apply two major pre-precessing steps:
+    	\textbf{Creation of hdf5-file}: We walk through the directory structure as outlined above and center-crop each image to size 90x90 pixels as illustrated in Fig \todo{fig cropping}. We then convert the cropped image into a flattened (one-dimensional) numpy array with range 0-255. Next, we read the .char.txt file of the same directory and build a list of unique labels. Finally, we write the contents into a hdf5-file such that each row contains the serialised image in the columns 0-8099 and the corresponding label in the last column. We chose the hdf5-file format over the standard csv-format due to the size of our dataset. Cropping to size 90x90 yields a hdf5-file of size 4.92 GB (compared to about 9.95 GB it would take to save uncropped images); loading the entirety of the data into tensors may exhaust the RAM on many machines.
+    	
+    	
+    	
+    \subsection{Hyperparameters optimization}
+    \subsection{Topology}
+
+    \section{Results}
+    \section{Discussion}
+    \section{Conclusion}
            
             
       \printbibliography
