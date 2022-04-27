@@ -15,7 +15,7 @@ OUT_PATH = os.path.join("data", "models")
 
 
 class Recognizer(torch.nn.Module):
-    """CNN to recognize 128x128 greyscale images of handwritten Japanese characters."""
+    """CNN to recognize 90x90 greyscale images of handwritten Japanese characters."""
 
     def __init__(self, trial=None):
         super().__init__()
@@ -58,7 +58,7 @@ class Recognizer(torch.nn.Module):
             def conv_dim(dim, padding=0, kernel_size=2, stride=2):
                 return math.floor(((dim + 2 * padding - (kernel_size - 1) - 1) / stride) + 1)
 
-            dim = 104
+            dim = 90
             MIN_DIM = 4
             num_conv = trial.suggest_int("num_conv_layers", 4, 8)
             num_pool = math.floor(num_conv / 2)
@@ -150,7 +150,6 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
         model.train_losses.append(train_loss)
         model.train_accuracy.append(train_acc)
 
-
         valid_loss, valid_acc = evaluate(model, valid_gen, stats)
         model.valid_losses.append(valid_loss)
         model.valid_accuracy.append(valid_acc)
@@ -173,9 +172,9 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
 
         if model.min_valid_loss > valid_loss:
             best_model = model
-          #  now = datetime.now()
-          #  dt_string = now.strftime("%d-%m-%Y%-H:%M:%S")
-          #  model_name = "model-"+dt_string+".pt"
+            #  now = datetime.now()
+            #  dt_string = now.strftime("%d-%m-%Y%-H:%M:%S")
+            #  model_name = "model-"+dt_string+".pt"
             model_name = "model.pt"
             torch.save(best_model, os.path.join(OUT_PATH, model_name))
 
@@ -192,7 +191,7 @@ def _step(model, train_gen, params, stats):
     with tqdm(train_gen, unit='batches') as progress:
         for img, target in train_gen:
             img, target = data.transform(
-                img, target, stats["mean"], stats["std"], 1, 128, 128)
+                img, target, stats["mean"], stats["std"], 1, 90, 90)
             img = img.to(DEVICE)
             target = target.to(DEVICE)
 
@@ -240,12 +239,12 @@ def evaluate(model, test_gen, stats):
     return np.mean(losses), np.mean(accuracies)
 
 
-def print_topology(model): summary(model, (1, 128, 128))
+def print_topology(model): summary(model, (1, 90, 90))
 
 
 def execute(model_path=None):
     torch.cuda.empty_cache()
-    dataset = data.Characters(data.PATH_TO_DATA_MINI, 128, 128, 1)
+    dataset = data.Characters(data.PATH_TO_DATA, 1, 90, 90)
     # print(f"Size of dataset: {len(dataset)}")
     train_data, valid, test = data.split(dataset, batch_size=5)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
@@ -264,7 +263,7 @@ def execute(model_path=None):
 
 def objective(trial, epochs=15, model_path=None):
     model = load_model(model_path, trial)
-    dataset = data.Characters(data.PATH_TO_DATA_MINI, 128, 128, 1)
+    dataset = data.Characters(data.PATH_TO_DATA, 1, 90, 90)
     train_data, valid, test = data.split(dataset, batch_size=256)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
     stats_dict = {"mean": dataset.mean, "std": dataset.std}
@@ -290,9 +289,11 @@ def load_model(model_path, trial=None):
 # print_topology(Recognizer())
 def optimize_hyper(name, save_path, n_trials=30):
     storage_name = "sqlite:///{}.db".format(name) if save_path is not None else None
-    study = optuna.create_study(study_name=name, storage=storage_name,
-                                direction="maximize", sampler=optuna.samplers.NSGAIISampler(
-                    population_size=20, mutation_prob=None, crossover_prob=0.9, swapping_prob=0.5))
+    study = optuna.create_study(study_name=name, storage=storage_name, direction="maximize",
+                                sampler=optuna.samplers.NSGAIISampler(population_size=20,
+                                                                      mutation_prob=None,
+                                                                      crossover_prob=0.9,
+                                                                      swapping_prob=0.5))
     study.optimize(objective, n_trials=n_trials)
 
 

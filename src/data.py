@@ -4,14 +4,14 @@ import h5py
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 
-PATH_TO_DATA = "/Volumes/MACBACKUP/DataSets/ETL-9-128x128.hdf5"
+PATH_TO_DATA = "/Volumes/MACBACKUP/DataSets/ETL-9-90x90.hdf5"
 PATH_TO_DATA_SHORT = "/Volumes/MACBACKUP/DataSets/ETL-9-1000.hdf5"
 PATH_TO_DATA_MINI = "/Volumes/MACBACKUP/DataSets/ETL-9-128x128-10.hdf5"
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class Characters(Dataset):
-    def __init__(self, path, width, height, channels):
+    def __init__(self, path, channels, width, height):
         self.path = path
         self.cache_idx = []
         self.img_data = None
@@ -37,7 +37,7 @@ class Characters(Dataset):
         return self.size
 
 
-def transform(imgs, labels, mean, std, channels=1, width=128, height=128):
+def transform(imgs, labels, mean, std, channels=1, width=90, height=90):
     """Transform slice of img/label hdf5 file into tensor,
     reshaped into (-1, channels, width, height).
 
@@ -56,8 +56,7 @@ def transform(imgs, labels, mean, std, channels=1, width=128, height=128):
 
     imgs = imgs.view(-1, channels, width, height)
     imgs = imgs.float()
-    transform = transforms.Compose([transforms.CenterCrop([104, 104]),
-                                    transforms.Normalize(mean=mean, std=std)])
+    transform = transforms.Normalize(mean=mean, std=std)
     imgs = imgs / 255
     imgs = transform(imgs)
     labels = labels.long().squeeze()
@@ -67,10 +66,8 @@ def transform(imgs, labels, mean, std, channels=1, width=128, height=128):
 def get_mean_std(iter):
     means = []
     stds = []
-    crop = transforms.CenterCrop([104, 104])
     for imgs, _ in iter:
-        imgs = imgs.view(-1, 128 * 128)
-        imgs = crop(imgs)
+        imgs = imgs.view(-1, 90 * 90)
         imgs = imgs / 255
         mean = torch.mean(imgs)
         std = torch.std(imgs)
@@ -99,7 +96,7 @@ def split(data, batch_size=64, train=0.5, valid=0.2, num_workers=0):
 
 
 def dummy():
-    data = Characters(PATH_TO_DATA_SHORT, 128, 128, 1)
+    data = Characters(PATH_TO_DATA_SHORT, 1, 90, 90)
     print(len(data))
     print(f"data shape in dummy: {data[3000][0].shape}")
     transform = transforms.ToPILImage()
