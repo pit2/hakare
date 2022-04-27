@@ -3,7 +3,6 @@ import numpy as np
 import h5py
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-import math
 
 PATH_TO_DATA = "/Volumes/MACBACKUP/DataSets/ETL-9-128x128.hdf5"
 PATH_TO_DATA_SHORT = "/Volumes/MACBACKUP/DataSets/ETL-9-1000.hdf5"
@@ -12,7 +11,7 @@ DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class Characters(Dataset):
-    def __init__(self, path, num_chunks, width, height, channels):
+    def __init__(self, path, width, height, channels):
         self.path = path
         self.cache_idx = []
         self.img_data = None
@@ -21,12 +20,10 @@ class Characters(Dataset):
         self.width = width
         self.height = height
         self.channels = channels
-        self.chunks = num_chunks
         self.mean = np.nan
         self.std = np.nan
         with h5py.File(self.path, "r") as file:
             self.size = (int)(len(file["images"]))
-        self.chunk_size = (int)(math.floor(self.size / self.chunks))
 
     def __getitem__(self, index):
         if self.file is None:
