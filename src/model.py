@@ -4,12 +4,14 @@ import numpy as np
 from torchsummary import summary
 from torchmetrics import Accuracy
 import matplotlib.pyplot as plt
-import tqdm
+from tqdm import tqdm
 import optuna
 import math
+import os.path
 
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+OUT_PATH = os.path.join("data", "models")
 
 
 class Recognizer(torch.nn.Module):
@@ -19,6 +21,7 @@ class Recognizer(torch.nn.Module):
         super().__init__()
         self.train_losses = []
         self.valid_losses = []
+        self.train_accuracy = []
         self.valid_accuracy = []
         self.test_accuracy = 0
         self.test_loss = np.inf
@@ -60,7 +63,8 @@ class Recognizer(torch.nn.Module):
             num_conv = trial.suggest_int("num_conv_layers", 2, 8)
             num_pool = math.floor(num_conv / 2)
             if num_conv <= 4:
-                out_channels = trial.suggest_categorical("output_channels_of_first_conv", [8, 16, 32])
+                out_channels = trial.suggest_categorical("output_channels_of_first_conv",
+                                                         [8, 16, 32])
             elif num_conv <= 6:
                 out_channels = 8
             elif num_conv == 7:
@@ -69,23 +73,25 @@ class Recognizer(torch.nn.Module):
                 out_channels = 2
             dropout_rate = trial.suggest_loguniform("dropout rate", 0.1, 0.7)
             kernel_size_1 = trial.suggest_categorical("kernel size of first conv", [3, 5, 7])
-            kernel_size_2 = trial.suggest_categorical("kernel size of second conv", [n for n in [3, 5, 7] if n <= kernel_size_1 ])
+            kernel_size_2 = trial.suggest_categorical("kernel size of second conv",
+                                                      [n for n in [3, 5, 7] if n <= kernel_size_1])
             padding = math.floor(num_conv / 2) - 1
             stride = 1 if num_conv < 4 else (2 if num_conv <= 6 else 3)
             layers = []
             kernels = [kernel_size_1, kernel_size_2] + [3 for n in range(num_conv - 2)]
             strides = [stride, stride] + [1 for n in range(num_conv - 2)]
             in_channels = 1
-            print(f"Kernels: {kernels}")
-            print(f"Pools: {num_pool}")
-            print(f"Out channels: {out_channels}")
-            print(f"Padding: {padding}")
-            print(f"Stride: {stride}")
+            # print(f"Kernels: {kernels}")
+            # print(f"Pools: {num_pool}")
+            # print(f"Out channels: {out_channels}")
+            # print(f"Padding: {padding}")
+            # print(f"Stride: {stride}")
 
             for i in range(num_conv):
                 new_dim = conv_dim(dim, padding, kernels[i], strides[i])
                 if new_dim >= MIN_DIM:
-                    layers.append(torch.nn.Conv2d(in_channels, out_channels, kernel_size=kernels[i], stride=strides[i], padding=padding))
+                    layers.append(torch.nn.Conv2d(in_channels, out_channels, kernel_size=kernels[i],
+                                  stride=strides[i], padding=padding))
                     layers.append(torch.nn.BatchNorm2d(out_channels))
                     layers.append(torch.nn.ReLU())
                     layers.append(torch.nn.Dropout2d(dropout_rate))
@@ -102,24 +108,25 @@ class Recognizer(torch.nn.Module):
                 in_channels = out_channels
                 out_channels = in_channels * 2
             self.FC_DIM = dim * dim * in_channels
-            print(f"Final dim: {dim}x{dim}")
-            print(f"FC_DIM: {self.FC_DIM}")
+            # print(f"Final dim: {dim}x{dim}")
+            # print(f"FC_DIM: {self.FC_DIM}")
             self.cnn = torch.nn.Sequential(*layers)
-            print(self.cnn)
+            # print(self.cnn)
             self.fc = torch.nn.Sequential(
                 torch.nn.Linear(self.FC_DIM, 3036),
                 torch.nn.Dropout(dropout_rate / 2))
 
     def forward(self, x):
         x = self.cnn(x)
-        print(x.shape)
+        # print(x.shape)
         x = x.view(-1, self.FC_DIM)
-        print(x.shape)
+        # print(x.shape)
         return self.fc(x)
 
 
-def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4, "betas": (0.5, 0.5)},
-          stats={"mean": 0, "std": 1}, epochs=10, report=True):
+def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
+                                               "betas": (0.5, 0.5)}, stats={"mean": 0, "std": 1},
+          epochs=10, report=True):
     """Using adams optimizer, train and validate the model. Returns the model with the smallest
     loss on the validation set after given number of epochs.
 
@@ -139,36 +146,51 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
     best_model = model
 
     for i in range(model.epochs, model.epochs + epochs):
-        model, train_loss = _step(model, train_gen, params, stats)
-        model.train_losses.append(train_loss)
+        with tqdm(train_gen, unit='batches') as progress:
+            model, train_loss, train_acc = _step(model, train_gen, params, stats)
+            model.train_losses.append(train_loss)
+            model.train_accuracy.append(train_acc)
+            progress.set_postfix(loss=train_loss, accuracy=train_acc, refresh=False)
+            progress.update()
 
-        valid_loss, accuracy = evaluate(model, valid_gen, stats)
+        valid_loss, valid_acc = evaluate(model, valid_gen, stats)
         model.valid_losses.append(valid_loss)
-        model.valid_accuracy.append(accuracy)
+        model.valid_accuracy.append(valid_acc)
 
         if report:
             print(
                 f"Epoch {i} --- test error: {train_loss} --- validation error: {valid_loss}")
-            print(f"Accuracy on validation set: {accuracy}")
+            print(f"Accuracy on validation set: {valid_acc}")
             if i > 0 and i % 10 == 0:
                 x_axis = [x for x in range(model.epochs + i + 1)]
-                print(x_axis)
                 plt.plot(x_axis, model.train_losses, label="train loss")
                 plt.plot(x_axis, model.valid_losses, label="valid loss")
+                plt.legend()
+                plt.show()
+                x_axis = [x for x in range(model.epochs + i + 1)]
+                plt.plot(x_axis, model.train_acc, label="train accuracy")
+                plt.plot(x_axis, model.valid_acc, label="valid accuracy")
                 plt.legend()
                 plt.show()
 
         if model.min_valid_loss > valid_loss:
             best_model = model
+          #  now = datetime.now()
+          #  dt_string = now.strftime("%d-%m-%Y%-H:%M:%S")
+          #  model_name = "model-"+dt_string+".pt"
+            model_name = "model.pt"
+            torch.save(best_model, os.path.join(OUT_PATH, model_name))
 
     return best_model
 
 
 def _step(model, train_gen, params, stats):
     """Execute one training step (one batch) and return updated model and mean loss."""
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=params["lr"], weight_decay=params["weight_decay"], betas=params["betas"])
+    optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"],
+                                 weight_decay=params["weight_decay"], betas=params["betas"])
     losses = []
+    accuracies = []
+    accuracy = Accuracy().to(DEVICE)
     for img, target in train_gen:
         img, target = data.transform(
             img, target, stats["mean"], stats["std"], 1, 128, 128)
@@ -181,10 +203,11 @@ def _step(model, train_gen, params, stats):
         loss.backward()
         optimizer.step()
         losses.append(loss.detach().item())
-        del img, target, loss
-        torch.cuda.empty_cache()
+        accuracies.append(accuracy(predict, target).cpu().item())
+        # del img, target, loss
+        # torch.cuda.empty_cache()
 
-    return model, np.mean(losses)
+    return model, np.mean(losses), np.mean(accuracies)
 
 
 def evaluate(model, test_gen, stats):
@@ -219,15 +242,16 @@ def evaluate(model, test_gen, stats):
 def print_topology(model): summary(model, (1, 128, 128))
 
 
-def execute():
+def execute(model_path=None):
     torch.cuda.empty_cache()
     dataset = data.Characters(data.PATH_TO_DATA_MINI, 128, 128, 1)
-    print(f"Size of dataset: {len(dataset)}")
+    # print(f"Size of dataset: {len(dataset)}")
     train_data, valid, test = data.split(dataset, batch_size=5)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
     stats_dict = {"mean": dataset.mean, "std": dataset.std}
-
-    model = train(Recognizer().to(DEVICE), train_data, valid, params={"lr": 0.2, "weight_decay": 1e-4},
+    model = load_model(model_path)
+    model = train(Recognizer().to(DEVICE), train_data, valid,
+                  params={"lr": 0.2, "weight_decay": 1e-4},
                   epochs=1, stats=stats_dict, report=True)
     model.test_loss, model.test_accuracy = evaluate(
         model, test, stats=stats_dict)
@@ -237,9 +261,8 @@ def execute():
     return model
 
 
-def objective(trial):
-    model = Recognizer(trial).to(DEVICE)
-    print_topology(model)
+def objective(trial, epochs=15, model_path=None):
+    model = load_model(model_path, trial)
     dataset = data.Characters(data.PATH_TO_DATA_MINI, 128, 128, 1)
     train_data, valid, test = data.split(dataset, batch_size=256)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
@@ -247,14 +270,29 @@ def objective(trial):
     beta1 = trial.suggest_loguniform("beta1", 0.01, 0.9)
     beta2 = trial.suggest_loguniform("beta2", 0.01, 0.9)
 
-    model = train(model, train_data, valid, params={"lr": 0.2, "weight_decay": 1e-4, "betas": (beta1, beta2)},
-                  epochs=10, stats=stats_dict, report=True)
+    model = train(model, train_data, valid,
+                  params={"lr": 0.2, "weight_decay": 1e-4, "betas": (beta1, beta2)},
+                  epochs=epochs, stats=stats_dict, report=False)
     model.test_loss, model.test_accuracy = evaluate(
         model, test, stats=stats_dict)
     return model.test_accuracy
 
 
+def load_model(model_path, trial=None):
+    if model_path is None:
+        model = Recognizer(trial).to(DEVICE)
+    else:
+        model = torch.load(model_path)
+    return model
+
+
 # print_topology(Recognizer())
-study = optuna.create_study(direction="maximize", sampler=optuna.samplers.NSGAIISampler(
-    population_size=20, mutation_prob=None, crossover_prob=0.9, swapping_prob=0.5))
-study.optimize(objective, n_trials=5)
+def optimize_hyper(name, save_path, n_trials=30):
+    storage_name = "sqlite:///{}.db".format(name) if save_path is not None else None
+    study = optuna.create_study(study_name=name, storage=storage_name,
+                                direction="maximize", sampler=optuna.samplers.NSGAIISampler(
+                    population_size=20, mutation_prob=None, crossover_prob=0.9, swapping_prob=0.5))
+    study.optimize(objective, n_trials=n_trials)
+
+
+optimize_hyper("hyperparameter-optimization-tmp-1", None)

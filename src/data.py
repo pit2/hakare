@@ -3,7 +3,6 @@ import numpy as np
 import h5py
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
-import math
 
 PATH_TO_DATA = "/Volumes/MACBACKUP/DataSets/ETL-9-128x128.hdf5"
 PATH_TO_DATA_SHORT = "/Volumes/MACBACKUP/DataSets/ETL-9-1000.hdf5"
