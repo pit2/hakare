@@ -47,14 +47,26 @@
         
     \section{Motivation}
     
-    \section{Problem statement}
-    \section{Methodology and CNN topology}
-    \subsection{Data exploration and preparation}
+    \section{Problem Statement}
+    \section{Methodology and CNN Topology}
+    \subsection{Data Pre-Processing}
     Our data is extracted from the ETL-9 dataset provided by the Japanese National Institute of Advanced Industrial Science and Technology (AIST)). With the image data originally gathered from 1973 to 1984, the digitalization was not undertaken with machine learning in mind and the format requires some pre-processing in order to be usable for machine learning. The dataset consists of greyscale image-files of hand-written characters written by several writers; each sheet (corresponding to one image file) contains several characters arranged in a grid-like fashion as shows in Fig. XXX\todo{fig original data}. In total, the dataset contains \todo{num images} images of 3036 different characters, including the entire set of hiragana and katakana, and the rest being kanji characters. 
     	Using the publicly available script \todo{reference}, we first extract the characters present on a sheet into individual files of size 127x128 pixels. This yields a file structure as shown in Fig \todo{file structure}, where each subfolder contains a series of image files representing the same character and a text file whose sole content is the correct label of this character.
     	
-    	To transform the image files into numerical data suitable for machine learning models, we apply two major pre-precessing steps:
-    	\textbf{Creation of hdf5-file}: We walk through the directory structure as outlined above and center-crop each image to size 90x90 pixels as illustrated in Fig \todo{fig cropping}. We then convert the cropped image into a flattened (one-dimensional) numpy array with range 0-255. Next, we read the .char.txt file of the same directory and build a list of unique labels. Finally, we write the contents into a hdf5-file such that each row contains the serialised image in the columns 0-8099 and the corresponding label in the last column. We chose the hdf5-file format over the standard csv-format due to the size of our dataset. Cropping to size 90x90 yields a hdf5-file of size 4.92 GB (compared to about 9.95 GB it would take to save uncropped images); loading the entirety of the data into tensors may exhaust the RAM on many machines.
+    	To transform the image files into numerical data suitable for machine learning models, we apply two major pre-precessing steps as described below.\\
+    	
+    	
+    	\textbf{Creation of hdf5-file}. We walk through the directory structure as outlined above and center-crop each image to size 90x90 pixels as illustrated in Fig \todo{fig cropping}. We then convert the cropped image into a flattened (one-dimensional) numpy integer array with range 0-255. Next, we read the .char.txt file of the same directory and build a list of unique labels. Finally, we write the contents into a hdf5-file such that each row contains the serialised image in the columns 0-8099 and the corresponding label in the last column. We chose the hdf5-file format over the standard csv-format due to the size of our dataset. Cropping to size 90x90 yields a hdf5-file of size 4.92 GB (compared to about 9.95 GB it would take to save uncropped images).\\
+    	
+    	
+    	\textbf{Characters data class}. The characters data class administers the data for the purpose of feeding it into our machine learning models. Since loading the entirety of the data into tensors may exhaust the RAM on many machines, we lazily load only the relevant batch at a time. Initially, we compute the mean $\mu$ and standard deviation $\sigma$ over the training set. Whenever the dataloader loads a batch of the training, validation, or test set, the following transformation are applied:
+    	\begin{enumerate}
+    		\item The relevant section of the hdf5 file is loaded into memory and stored into tensors, reshaped in the form $(b, 1, 90, 90$ where $b$ denotes the batch size.
+    		\item Each pixel, initially holding an integer value in range $[0, 255]$, is divided by $255$ to yield a float tensor with values in $[0, 1]$.
+    		\item The image is next normalised whereby the new value $p_{new}$ of each pixel is obtained from the present value $p_{old}$ by: $$ p_{new} = \frac{p_{old} - \mu}{\sigma}$$ (Note that the same values of $\mu$ and $\sigma$  obtained from the training set are used when transforming the validation or test set.). After this step, we obtain a float tensor with range $[-1, 1]$ and, in case of the training set, $\mu \approx 0$, $\sigma \approx 1$. Since $\mu$ and $\sigma$ are obtained from the training set as a whole and not for each image individually, a strict identity does not hold but the approximation is good enough.\todo{ref}
+    	\end{enumerate}
+    	
+    	Fig summarises our data pre-processing pipeline. 
     	
     	
     	
