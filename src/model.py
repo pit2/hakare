@@ -58,7 +58,7 @@ class Recognizer(torch.nn.Module):
             def conv_dim(dim, padding=0, kernel_size=2, stride=2):
                 return math.floor(((dim + 2 * padding - (kernel_size - 1) - 1) / stride) + 1)
 
-            dim = 128
+            dim = 104
             MIN_DIM = 4
             num_conv = trial.suggest_int("num_conv_layers", 4, 8)
             num_pool = math.floor(num_conv / 2)
