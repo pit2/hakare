@@ -204,7 +204,7 @@ def _step(model, train_gen, params, stats):
             accuracies.append(accuracy(predict, target).cpu().item())
             # del img, target, loss
             # torch.cuda.empty_cache()
-            progress.set_postfix(loss=np.mean(losses), accuracy=np.mean(accuracies), refresh=False)
+            progress.set_postfix(loss=np.mean(losses), accuracy=np.mean(accuracies) * 100, refresh=False)
             progress.update()
 
     return model, np.mean(losses), np.mean(accuracies)
@@ -228,7 +228,7 @@ def evaluate(model, test_gen, stats):
     with torch.no_grad():
         for img, target in test_gen:
             img, target = data.transform(
-                img, target, stats["mean"], stats["std"], 1, 128, 128)
+                img, target, stats["mean"], stats["std"], 1, 90, 90)
             img = img.to(DEVICE)
             target = target.to(DEVICE)
             predict = model(img)
@@ -264,7 +264,8 @@ def execute(model_path=None):
 def objective(trial, epochs=15, model_path=None):
     model = load_model(model_path, trial)
     dataset = data.Characters(data.PATH_TO_DATA, 1, 90, 90)
-    train_data, valid, test = data.split(dataset, batch_size=256)
+    batch_size = trial.suggest_categorical("batch size", [16, 32, 64, 128, 256, 512, 1024])
+    train_data, valid, test = data.split(dataset, batch_size=batch_size)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
     stats_dict = {"mean": dataset.mean, "std": dataset.std}
     beta1 = trial.suggest_loguniform("beta1", 0.01, 0.9)
@@ -287,14 +288,14 @@ def load_model(model_path, trial=None):
 
 
 # print_topology(Recognizer())
-def optimize_hyper(name, save_path, n_trials=30):
-    storage_name = "sqlite:///{}.db".format(name) if save_path is not None else None
+def optimize_hyper(name, save_study=False, n_trials=30):
+    storage_name = "sqlite:///{}.db".format(name) if save_study else None
     study = optuna.create_study(study_name=name, storage=storage_name, direction="maximize",
                                 sampler=optuna.samplers.NSGAIISampler(population_size=20,
                                                                       mutation_prob=None,
                                                                       crossover_prob=0.9,
                                                                       swapping_prob=0.5))
-    study.optimize(objective, n_trials=n_trials)
+    study.optimize(objective, n_trials=n_trials, timeout=60*60)
 
 
-optimize_hyper("hyperparameter-optimization-tmp-1", None)
+optimize_hyper("hyperparameter-optimization-3", save_study=True)

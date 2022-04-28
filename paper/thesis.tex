@@ -63,7 +63,7 @@
     	\begin{enumerate}
     		\item The relevant section of the hdf5 file is loaded into memory and stored into tensors, reshaped in the form $(b, 1, 90, 90$ where $b$ denotes the batch size.
     		\item Each pixel, initially holding an integer value in range $[0, 255]$, is divided by $255$ to yield a float tensor with values in $[0, 1]$.
-    		\item The image is next normalised whereby the new value $p_{new}$ of each pixel is obtained from the present value $p_{old}$ by: $$ p_{new} = \frac{p_{old} - \mu}{\sigma}$$ (Note that the same values of $\mu$ and $\sigma$  obtained from the training set are used when transforming the validation or test set.). After this step, we obtain a float tensor with range $[-1, 1]$ and, in case of the training set, $\mu \approx 0$, $\sigma \approx 1$. Since $\mu$ and $\sigma$ are obtained from the training set as a whole and not for each image individually, a strict identity does not hold but the approximation is good enough.\todo{ref}
+    		\item We next normalise image: the new value $p_{new}$ of each pixel is obtained from the present value $p_{old}$ by: $$ p_{new} = \frac{p_{old} - \mu}{\sigma}$$ (Note that the same values of $\mu$ and $\sigma$  obtained from the training set are used when transforming the validation or test set.) After this step, we obtain a float tensor with range $[-1, 1]$ and, in case of the training set, $\mu \approx 0$, $\sigma \approx 1$. Since $\mu$ and $\sigma$ are obtained from the training set as a whole and not for each image individually, a strict identity does not hold but the approximation is good enough.\todo{ref}
     	\end{enumerate}
     	
     	Fig summarises our data pre-processing pipeline. 
