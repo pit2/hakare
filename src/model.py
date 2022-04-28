@@ -29,8 +29,13 @@ class Recognizer(torch.nn.Module):
         self.min_valid_loss = np.inf
         self.epochs = 0
 
+        def conv_dim(dim, padding=0, kernel_size=2, stride=2):
+            return math.floor(((dim + 2 * padding - (kernel_size - 1) - 1) / stride) + 1)
+
         if trial is None:
-            self.FC_DIM = 256 * 8 * 8
+            dim = conv_dim(conv_dim(conv_dim(conv_dim(conv_dim(90, 3, 5, 2),
+                                             1, 2, 2), 3, 3, 2), 3, 3, 2), 3, 3, 2)
+            self.FC_DIM = 256 * dim * dim
             self.cnn = torch.nn.Sequential(
                 torch.nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=3),
                 torch.nn.BatchNorm2d(32),
@@ -55,8 +60,6 @@ class Recognizer(torch.nn.Module):
                 torch.nn.Dropout(0.2)
             )
         else:
-            def conv_dim(dim, padding=0, kernel_size=2, stride=2):
-                return math.floor(((dim + 2 * padding - (kernel_size - 1) - 1) / stride) + 1)
 
             dim = 90
             MIN_DIM = 4
@@ -117,9 +120,7 @@ class Recognizer(torch.nn.Module):
 
     def forward(self, x):
         x = self.cnn(x)
-        # print(x.shape)
         x = x.view(-1, self.FC_DIM)
-        # print(x.shape)
         return self.fc(x)
 
 
@@ -141,12 +142,14 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
     Returns best Recognizer model (i.e. min validation error)
     """
     model.to(DEVICE)
-    model.train()
+
     best_model = model
+    optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"],
+                                 weight_decay=params["weight_decay"], betas=params["betas"])
 
     for i in range(model.epochs, model.epochs + epochs):
 
-        model, train_loss, train_acc = _step(model, train_gen, params, stats)
+        model, train_loss, train_acc = _step(model, optimizer, train_gen, params, stats)
         model.train_losses.append(train_loss)
         model.train_accuracy.append(train_acc)
 
@@ -157,7 +160,7 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
         if report:
             print(
                 f"Epoch {i} --- test error: {train_loss} --- validation error: {valid_loss}")
-            print(f"Accuracy on validation set: {valid_acc}")
+            print(f"Accuracy on validation set: {valid_acc*100}%")
             if i > 0 and i % 10 == 0:
                 x_axis = [x for x in range(model.epochs + i + 1)]
                 plt.plot(x_axis, model.train_losses, label="train loss")
@@ -165,8 +168,8 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
                 plt.legend()
                 plt.show()
                 x_axis = [x for x in range(model.epochs + i + 1)]
-                plt.plot(x_axis, model.train_acc, label="train accuracy")
-                plt.plot(x_axis, model.valid_acc, label="valid accuracy")
+                plt.plot(x_axis, model.train_acc*100, label="train accuracy %")
+                plt.plot(x_axis, model.valid_acc*100, label="valid accuracy %")
                 plt.legend()
                 plt.show()
 
@@ -181,13 +184,12 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
     return best_model
 
 
-def _step(model, train_gen, params, stats):
+def _step(model, optimizer, train_gen, params, stats):
     """Execute one training step (one batch) and return updated model and mean loss."""
-    optimizer = torch.optim.Adam(model.parameters(), lr=params["lr"],
-                                 weight_decay=params["weight_decay"], betas=params["betas"])
     losses = []
     accuracies = []
     accuracy = Accuracy().to(DEVICE)
+    model.train()
     with tqdm(train_gen, unit='batches') as progress:
         for img, target in train_gen:
             img, target = data.transform(
@@ -204,7 +206,8 @@ def _step(model, train_gen, params, stats):
             accuracies.append(accuracy(predict, target).cpu().item())
             # del img, target, loss
             # torch.cuda.empty_cache()
-            progress.set_postfix(loss=np.mean(losses), accuracy=np.mean(accuracies) * 100, refresh=False)
+            progress.set_postfix(loss=np.mean(losses), accuracy=np.mean(accuracies) * 100,
+                                 refresh=False)
             progress.update()
 
     return model, np.mean(losses), np.mean(accuracies)
@@ -246,13 +249,14 @@ def execute(model_path=None):
     torch.cuda.empty_cache()
     dataset = data.Characters(data.PATH_TO_DATA, 1, 90, 90)
     # print(f"Size of dataset: {len(dataset)}")
-    train_data, valid, test = data.split(dataset, batch_size=5)
+    train_data, valid, test = data.split(dataset, batch_size=32, train=0.3, valid=0.1, test=0.2,
+                                         num_workers=2)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
     stats_dict = {"mean": dataset.mean, "std": dataset.std}
     model = load_model(model_path)
     model = train(Recognizer().to(DEVICE), train_data, valid,
-                  params={"lr": 0.2, "weight_decay": 1e-4},
-                  epochs=1, stats=stats_dict, report=True)
+                  params={"lr": 0.003, "weight_decay": 1e-4, "betas": (0.9, 0.999)},
+                  epochs=50, stats=stats_dict, report=True)
     model.test_loss, model.test_accuracy = evaluate(
         model, test, stats=stats_dict)
     print(f"Loss on test set: {model.test_loss}")
@@ -261,18 +265,19 @@ def execute(model_path=None):
     return model
 
 
-def objective(trial, epochs=15, model_path=None):
+def objective(trial, epochs=8, model_path=None):
     model = load_model(model_path, trial)
     dataset = data.Characters(data.PATH_TO_DATA, 1, 90, 90)
     batch_size = trial.suggest_categorical("batch size", [16, 32, 64, 128, 256, 512, 1024])
-    train_data, valid, test = data.split(dataset, batch_size=batch_size)
+    train_data, valid, test = data.split(dataset, batch_size=batch_size, train=0.4, valid=0.1,
+                                         test=0.2, num_workers=2)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
     stats_dict = {"mean": dataset.mean, "std": dataset.std}
-    beta1 = trial.suggest_loguniform("beta1", 0.01, 0.9)
-    beta2 = trial.suggest_loguniform("beta2", 0.01, 0.9)
-
+    beta1 = 0.9  # trial.suggest_loguniform("beta1", 0.01, 0.9)
+    beta2 = 0.999  # trial.suggest_loguniform("beta2", 0.01, 0.999)
+    lr = trial.suggest_loguniform("lr", 0.0001, 0.004)
     model = train(model, train_data, valid,
-                  params={"lr": 0.2, "weight_decay": 1e-4, "betas": (beta1, beta2)},
+                  params={"lr": lr, "weight_decay": 1e-4, "betas": (beta1, beta2)},
                   epochs=epochs, stats=stats_dict, report=False)
     model.test_loss, model.test_accuracy = evaluate(
         model, test, stats=stats_dict)
@@ -288,14 +293,20 @@ def load_model(model_path, trial=None):
 
 
 # print_topology(Recognizer())
-def optimize_hyper(name, save_study=False, n_trials=30):
+def optimize_hyper(name, save_study=False, load_study=False, n_trials=30):
     storage_name = "sqlite:///{}.db".format(name) if save_study else None
-    study = optuna.create_study(study_name=name, storage=storage_name, direction="maximize",
-                                sampler=optuna.samplers.NSGAIISampler(population_size=20,
-                                                                      mutation_prob=None,
-                                                                      crossover_prob=0.9,
-                                                                      swapping_prob=0.5))
+    if load_study:
+        study = optuna.load_study(study_name="hyperparameter-optimization-3",
+                                  storage="sqlite:///{}.db".format(name))
+    else:
+        study = optuna.create_study(study_name=name, storage=storage_name, direction="maximize",
+                                    sampler=optuna.samplers.NSGAIISampler(population_size=20,
+                                                                          mutation_prob=None,
+                                                                          crossover_prob=0.9,
+                                                                          swapping_prob=0.5))
     study.optimize(objective, n_trials=n_trials, timeout=60*60)
 
+# model = execute()
 
-optimize_hyper("hyperparameter-optimization-3", save_study=True)
+
+optimize_hyper("hyperparameter-optimization-10", save_study=True, load_study=False)
