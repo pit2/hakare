@@ -33,7 +33,8 @@ class Recognizer(torch.nn.Module):
             return math.floor(((dim + 2 * padding - (kernel_size - 1) - 1) / stride) + 1)
 
         if trial is None:
-            dim = conv_dim(conv_dim(conv_dim(conv_dim(conv_dim(90, 3, 5, 2), 1, 2, 2), 3, 3, 2), 3, 3, 2), 3, 3, 2)
+            dim = conv_dim(conv_dim(conv_dim(conv_dim(conv_dim(90, 3, 5, 2),
+                                             1, 2, 2), 3, 3, 2), 3, 3, 2), 3, 3, 2)
             self.FC_DIM = 256 * dim * dim
             self.cnn = torch.nn.Sequential(
                 torch.nn.Conv2d(1, 32, kernel_size=5, stride=2, padding=3),
@@ -205,7 +206,9 @@ def _step(model, optimizer, train_gen, params, stats):
             accuracies.append(accuracy(predict, target).cpu().item())
             # del img, target, loss
             # torch.cuda.empty_cache()
-            progress.set_postfix(loss=np.mean(losses), accuracy=np.mean(accuracies) * 100, refresh=False)
+
+            progress.set_postfix(loss=np.mean(losses), accuracy=np.mean(accuracies) * 100,
+                                 refresh=False)
             progress.update()
 
     return model, np.mean(losses), np.mean(accuracies)
@@ -247,7 +250,8 @@ def execute(model_path=None):
     torch.cuda.empty_cache()
     dataset = data.Characters(data.PATH_TO_DATA, 1, 90, 90)
     # print(f"Size of dataset: {len(dataset)}")
-    train_data, valid, test = data.split(dataset, batch_size=32, train=0.3, valid=0.1, test=0.2, num_workers=2)
+    train_data, valid, test = data.split(dataset, batch_size=32, train=0.3, valid=0.1, test=0.2,
+                                         num_workers=2)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
     stats_dict = {"mean": dataset.mean, "std": dataset.std}
     model = load_model(model_path)
@@ -266,12 +270,13 @@ def objective(trial, epochs=8, model_path=None):
     model = load_model(model_path, trial)
     dataset = data.Characters(data.PATH_TO_DATA, 1, 90, 90)
     batch_size = trial.suggest_categorical("batch size", [16, 32, 64, 128, 256, 512, 1024])
-    train_data, valid, test = data.split(dataset, batch_size=batch_size, train=0.4, valid=0.1, test=0.2, num_workers=2)
+    train_data, valid, test = data.split(dataset, batch_size=batch_size, train=0.4, valid=0.1,
+                                         test=0.2, num_workers=2)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
     stats_dict = {"mean": dataset.mean, "std": dataset.std}
-    beta1 = 0.9 # trial.suggest_loguniform("beta1", 0.01, 0.9)
-    beta2 = 0.999 # trial.suggest_loguniform("beta2", 0.01, 0.999)
-    lr = trial.suggest_loguniform("lr", 0.005, 0.02)
+    beta1 = 0.9  # trial.suggest_loguniform("beta1", 0.01, 0.9)
+    beta2 = 0.999  # trial.suggest_loguniform("beta2", 0.01, 0.999)
+    lr = trial.suggest_loguniform("lr", 0.0001, 0.004)
     model = train(model, train_data, valid,
                   params={"lr": lr, "weight_decay": 1e-4, "betas": (beta1, beta2)},
                   epochs=epochs, stats=stats_dict, report=False)
@@ -292,15 +297,17 @@ def load_model(model_path, trial=None):
 def optimize_hyper(name, save_study=False, load_study=False, n_trials=30):
     storage_name = "sqlite:///{}.db".format(name) if save_study else None
     if load_study:
-        study = optuna.load_study(study_name="hyperparameter-optimization-3", storage="sqlite:///{}.db".format(name))
+        study = optuna.load_study(study_name="hyperparameter-optimization-3",
+                                  storage="sqlite:///{}.db".format(name))
     else:
         study = optuna.create_study(study_name=name, storage=storage_name, direction="maximize",
-                                sampler=optuna.samplers.NSGAIISampler(population_size=20,
-                                                                      mutation_prob=None,
-                                                                      crossover_prob=0.9,
-                                                                      swapping_prob=0.5))
+                                    sampler=optuna.samplers.NSGAIISampler(population_size=20,
+                                                                          mutation_prob=None,
+                                                                          crossover_prob=0.9,
+                                                                          swapping_prob=0.5))
     study.optimize(objective, n_trials=n_trials, timeout=60*60)
 
 # model = execute()
 
-optimize_hyper("hyperparameter-optimization-9", save_study=True, load_study=False)
+
+optimize_hyper("hyperparameter-optimization-10", save_study=True, load_study=False)
