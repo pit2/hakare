@@ -75,8 +75,7 @@ class Recognizer(torch.nn.Module):
                 out_channels = 2
             dropout_rate = trial.suggest_loguniform("dropout rate", 0.3, 0.7)
             kernel_size_1 = trial.suggest_categorical("kernel size of first conv", [3, 5, 7])
-            kernel_size_2 = trial.suggest_categorical("kernel size of second conv",
-                                                      [n for n in [3, 5] if n <= kernel_size_1])
+            kernel_size_2 = trial.suggest_categorical("kernel size of 2nd conv", [3, 5])
             padding = math.floor(num_conv / 2) - 1
             stride = 1 if num_conv < 4 else (2 if num_conv <= 6 else 3)
             layers = []
@@ -305,7 +304,7 @@ def optimize_hyper(name, save_study=False, load_study=False, n_trials=30):
                                                                           mutation_prob=None,
                                                                           crossover_prob=0.9,
                                                                           swapping_prob=0.5))
-    study.optimize(objective, n_trials=n_trials, timeout=60*60)
+    study.optimize(objective, n_trials=n_trials, timeout=60*30)
 
 # model = execute()
 
