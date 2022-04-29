@@ -77,13 +77,14 @@ def get_mean_std(iter):
     return np.array(means).mean(axis=0), np.array(stds).mean(axis=0)
 
 
-def split(data, batch_size=64, train=0.5, valid=0.2, num_workers=0):
+def split(data, batch_size=64, train=0.5, valid=0.2, test=0.3, num_workers=0):
     """Split data into train/valid/test sets of given batch size. Returns iterable generators."""
     train_size = int(train * len(data))
     valid_size = int(valid * len(data))
-    test_size = len(data) - train_size - valid_size
-    train_data, valid_data, test_data = torch.utils.data.random_split(
-        data, (train_size, valid_size, test_size))
+    test_size = int(test * len(data))
+    rest = len(data) - train_size - valid_size - test_size
+    train_data, valid_data, test_data, _ = torch.utils.data.random_split(
+        data, (train_size, valid_size, test_size, rest))
 
     train_generator = DataLoader(
         train_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
