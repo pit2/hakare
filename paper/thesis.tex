@@ -14,6 +14,7 @@
     \usepackage{titling}
     \usepackage{setspace}
     \usepackage{todo}
+    \usepackage[a4paper, left=2.5cm, right=2.5cm, top=2.5cm]{geometry}
  
 
     \usepackage[
@@ -49,14 +50,14 @@
     
     \section{Problem Statement}
     \section{Methodology and CNN Topology}
-    \subsection{Data Pre-Processing}
+    \subsection{Data Pre-Processing}\label{secPreProcess}
     Our data is extracted from the ETL-9 dataset provided by the Japanese National Institute of Advanced Industrial Science and Technology (AIST)). With the image data originally gathered from 1973 to 1984, the digitalization was not undertaken with machine learning in mind and the format requires some pre-processing in order to be usable for machine learning. The dataset consists of greyscale image-files of hand-written characters written by several writers; each sheet (corresponding to one image file) contains several characters arranged in a grid-like fashion as shows in Fig. XXX\todo{fig original data}. In total, the dataset contains \todo{num images} images of 3036 different characters, including the entire set of hiragana and katakana, and the rest being kanji characters. 
     	Using the publicly available script \todo{reference}, we first extract the characters present on a sheet into individual files of size 127x128 pixels. This yields a file structure as shown in Fig \todo{file structure}, where each subfolder contains a series of image files representing the same character and a text file whose sole content is the correct label of this character.
     	
     	To transform the image files into numerical data suitable for machine learning models, we apply two major pre-precessing steps as described below.\\
     	
     	
-    	\textbf{Creation of hdf5-file}. We walk through the directory structure as outlined above and center-crop each image to size 90x90 pixels as illustrated in Fig \todo{fig cropping}. We then convert the cropped image into a flattened (one-dimensional) numpy integer array with range 0-255. Next, we read the .char.txt file of the same directory and build a list of unique labels. Finally, we write the contents into a hdf5-file such that each row contains the serialised image in the columns 0-8099 and the corresponding label in the last column. We chose the hdf5-file format over the standard csv-format due to the size of our dataset. Cropping to size 90x90 yields a hdf5-file of size 4.92 GB (compared to about 9.95 GB it would take to save uncropped images).\\
+    	\textbf{Creation of hdf5-file}. We walk through the directory structure as outlined above and center-crop each image to size 90x90 pixels as illustrated in Fig \todo{fig cropping}. We then convert the cropped image into a flattened (i.e. one-dimensional) numpy integer array with range 0-255. Next, we read the .char.txt file of the same directory and build a list of unique labels. Finally, we write the contents into a hdf5-file such that each row contains the serialised image in the columns 0-8099 and the corresponding label in the last column. We chose the hdf5-file format over the standard csv-format due to the size of our dataset. Cropping to size 90x90 yields a hdf5-file of size 4.92 GB (compared to about 9.95 GB it would take to save uncropped images).\\
     	
     	
     	\textbf{Characters data class}. The characters data class administers the data for the purpose of feeding it into our machine learning models. Since loading the entirety of the data into tensors may exhaust the RAM on many machines, we lazily load only the relevant batch at a time. Initially, we compute the mean $\mu$ and standard deviation $\sigma$ over the training set. Whenever the dataloader loads a batch of the training, validation, or test set, the following transformation are applied:
@@ -69,9 +70,34 @@
     	Fig summarises our data pre-processing pipeline. 
     	
     	
-    	
-    \subsection{Hyperparameters optimization}
-    \subsection{Topology}
+    \subsection{Convolutional Neural Networks}
+    As we are dealing with an image classification problem, it lies at hand to employ a variation of a convolutional neural network (CNN). First devised in a seminal paper \todo{ref CNN}, CNNs are a special kind of neural network that employ, in particular, so-called convolutional layers and pooling layers, often stacked on top of each other iteratively. While vanilla feed-forward networks could, in principal, also process and classify image data, employing CNNs comes with several advantages:
+    \begin{itemize}
+    	\item \textbf{Spacial relationships}: Images are two-dimensional	(per channel). Therefor, it is not only the actual pixel value that holds information but also where this pixel is located and what values neighbouring pixels hold. This topological information is lost in the flattened input of feed-forward networks; CNNs, on the other hand, process an image per channel in its two-dimensional representation. 
+    	\item \textbf{Feature extraction}: Each convolutional layer processes its image input by applying a convolutional filter. This filter slides over the image (possibly extended by a frame of zeros if \textit{padding} is used) a certain number of pixels at a time (the so-called \textit{stride}), computing the dot-product of the filter and the filter-sized patch of the input. It is important that the filter be of uneven size - typical sizes are $3x$ or $5x5$ for \todo{why?}. Since a filter is considerably smaller than the input, it is applied repeatedly on different regions of the input, allowing the filter to focus on the detection of the same feature (such as, e.g., a vertical line) throughout the image, a property commonly referred to as \textit{translation invariance}. The output of a convolutional layer is a set of feature maps, or put differently: we increase the number of channels of the image. Depending on the padding, filter size, and stride, the dimension of the image may change slightly as well as given.
+    	\item \textbf{Dimensionality reduction}: Another common type of layer in a CNN is the pooling layer. Typically applied after a convolution, pooling aggregates the values of several pixels into one. For instance, a max-pooling filter of size 2 outputs the maximum value of the four pixels in its range in each step. The result is a rather drastic dimensionality reduction. Let $k$ denote the filter size, $p$ the padding size, and $s$ its stride. Typical pooling filters are \todo{ref Deep learning book}Given an input image of size $dxd$, the output after pooling is given by
+    	$$\todo{formula}$$
+    	This same formula applies for the dimensionality after convolution; however, while pooling typically shrinks an image in half, the main objective of convolution is feature extraction - the dimensionality reduction is marginal and essentially a side-effect of the applied parameters. 
+    	\item \textbf{Increased performance}: As a result of the feature extraction and dimensionality reduction, CNNs usually have fewer learnable weights than a comparable feed-forward network. This can speed up training times considerably, resulting in a more robust model.
+    \end{itemize}
+    
+    While not specific to CNNs, we introduce two more ingredients for our neural model:
+    \begin{itemize}
+        \item \textbf{Dropout}:	Overfitting is the learning of spurious patterns merely present in the training data, but not the test data. To detect overfitting, the employ a form of early stopping. After each training epoch, we evaluate our model on the validation set and compare the loss. We track the smallest loss on the validation set and compare it to the current validation loss; only if if it is smaller do we keep the current model. In case of overfitting, training and validation loss would diverge and the overfitted model, yielding a higher validation loss despite a continuously decrease training loss, is discarded. A common regularization technique to combat overfitting is the use of dropout layers. A dropout layer is technically not a layer in itself for it does not add neurons to a neural network. Instead, it works in conjunction with another layer to forbid usage of random neurons with a certain dropout probability. Unable to build reliance on a prominent subset of neurons, the neural network is forced to explore a wider selection of paths to generate the desired output. Note that dropout layers are inactive when we operate the network in evaluation mode. 
+    	\item \textbf{Batch normalisation}: We argued in section \ref{secPreProcess} that normalising the data input data can improve training speed and thereby model performance. As we continue training and sampling data in batches of size $\le n$ where $n$ is the size of the training set, the distribution of features is set to drift. As a consequence, higher layers, i.e. those further away from the output layer, need to adjust to keep up with the change in distribution, slowing down learning. Batch-normalisation remedies this \textit{covariate shift} by normalising each batch, i.e. subtracting the mean and dividing by its standard deviation. With each layer being fed normalised data, one can usually employ a higher learning rate. 
+    \end{itemize}
+    
+    We train our model with the Adams optimiser. This 
+    
+    Before we discuss our network topology, we offer some reasoning for it in the next section.
+
+ 	
+    \subsection{Hyperparameters Optimization}
+    Neural networks are complex black-box models and it is often not straight-forward to estimate a-priori the result of certain choices with regard to their design (e.g. number and type of layers) and their configuration (i.e. dropout probability, weight decay). These unknowns are generally referred to as \textit{hyperparameters} and finding near-optimal values is an important step before actually training the final model.
+    
+    Hyperparameter optimization is computationally expensive as many neural models need to be trained. To complicate things, hyperparameters are notoriously inter-dependent so that sequential optimization, e.g. first fixing the number of layers and then deciding a dropout-rate, is out of the question. We utilise the Optuna framework to aid in hyperparameters optimisation. For resource constraints, we limit ourself to only 8 epochs of training per trial and merely 12 trials, and expose the models to only half of the available dataset; our results here are to be understood as a principle proof-of-concept to illustrate the general idea. We do not make the claim here that our hyperparamters optimisation is encompassing enough to have identified the absolutely best model for this task. In the sequel, we put more emphasis on our choice of hyperparamters to be optimised, and only sketch the results. 
+    
+    \subsection{Final Topology}
 
     \section{Results}
     \section{Discussion}
