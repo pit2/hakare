@@ -15,8 +15,8 @@
     \usepackage{setspace}
     \usepackage{todo}
     \usepackage[a4paper, left=2.5cm, right=2.5cm, top=2.5cm]{geometry}
-    \usepackage{lscape}
-    \usepackage{pdflscape}
+    \usepackage{graphicx}
+    \usepackage{kotex}
  
 
     \usepackage[
@@ -40,10 +40,32 @@
            
 
     \end{abstract}
-        
-    \section{Motivation}
+    \tableofcontents
+    \section{Motivation and Problem Statement}
+    \subsection{Handwritten Optical Character Recognition}\label{secHOCR}
+    Handwritten optical character recognition (HOCR) is a task commonly solved with deep learning methods. One of the most classic examples in machine learning is the MNIST dataset that contains images of handwritten characters from the set $\{0, 1, \dots, 9\}$ \todo{ref}. Although this is a tame set in the sense that the images have already been pre-processed \todo{ref book}, in general, HOCR is a difficult problem:
+    \begin{itemize}
+    	\item HOCR data shows high variability and possibly ambiguity from person to person, and occasionally even for the same person over time.
+    	\item Obtaining labeled HOCR data in good quality as needed for machine learning can be difficult. Due to the high inter-person variability, the set needs to include sufficient samples from a variation of writers.
+    	\item 
+    		
+    \end{itemize}
     
-    \section{Problem Statement}
+    \subsection{Problem Statement}
+    In this work, we explore convolutional neural network (CNN) models to classify handwritten Japanese characters. Japanese uses at least three sets of unique characters: hiragana and katakana characters, and the kanji characters. The latter 
+    
+    In addition to the challenges mentioned in Section \ref{secHOCR}, recognising handwritten Japanese characters is particularly difficult due to the following reasons:
+    
+    \begin{itemize}
+    	\item While the number of individual characters is relatively low for most alphabet-based languages, Japanese uses XXX hiragana and just as many katakana characters alone; there are more than XXX kanji characters.  In addition, symbols from the Latin alphabet or Arabic numerals may be used in Japanese writings as well. Even if one restricts oneself to those kanjis most often used in everyday life, the classification problem will have over 3000 classes compared to less than 100 for the English language.
+    	\item Some kanji characters can be incredibly complex; in fact, a certain kanji character may be constructed from simpler ones to obtain a new meaning.  For instance, 勢 ("military strength") consists of the kanjis 丶 ("dot"), 力 ("power"), 九 ("nine"), and 土 ("soil").
+       	\item Some kanji characters show high similarity to each other, making them notoriously hard to distinguish. For instance, compare the similarity of the kanjis 九 and 力 from the previous example where the sole difference is essentially just a slightly different hook on the second stroke.	
+    \end{itemize}
+
+
+    
+    
+     In this work, we explore convolutional neural networks to classify Japanese characters
     \section{Methodology and CNN Topology}
     \subsection{Data Pre-Processing}\label{secPreProcess}
     Our data is extracted from the ETL-9 dataset provided by the Japanese National Institute of Advanced Industrial Science and Technology (AIST)). With the image data originally gathered from 1973 to 1984, the digitalisation was not undertaken with machine learning in mind and the format requires some pre-processing in order to be usable for machine learning. The dataset consists of greyscale image-files of hand-written characters written by several writers; each sheet (corresponding to one image file) contains several characters arranged in a grid-like fashion as shows in Fig. XXX\todo{fig original data}. In total, the dataset contains 607200 images of 3036 different characters (200 images per character), of which 71 are hiragana and 2965 are kanji characters.
