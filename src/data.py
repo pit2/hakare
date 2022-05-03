@@ -3,17 +3,26 @@ import numpy as np
 import h5py
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
+import os.path
 
-PATH_TO_DATA = "/Volumes/MACBACKUP/DataSets/ETL-9-90x90.hdf5"
-PATH_TO_DATA_SHORT = "/Volumes/MACBACKUP/DataSets/ETL-9-1000.hdf5"
-PATH_TO_DATA_MINI = "/Volumes/MACBACKUP/DataSets/ETL-9-128x128-10.hdf5"
+PATH_TO_DATA = os.path.join("data", "ETL-9-90x90.hdf5")
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
 class Characters(Dataset):
+    """Characters data class that lazily loads hdf5 file containing serialised images and
+    labels.
+
+    Parameters:
+        path (str): Path to hdf5 data file.
+        channels (int): Number of channels per image.
+        width (int): Width of each image.
+        height (int): Height of each image.
+    """
+
     def __init__(self, path, channels, width, height):
+
         self.path = path
-        self.cache_idx = []
         self.img_data = None
         self.label_data = None
         self.file = None
@@ -39,19 +48,21 @@ class Characters(Dataset):
 
 def transform(imgs, labels, mean, std, channels=1, width=90, height=90):
     """Transform slice of img/label hdf5 file into tensor,
-    reshaped into (-1, channels, width, height).
+    reshaped into normalised float tensor of shape (-1, channels, width, height).
 
     Parameters:
     - imgs (img group of hdf5 file) - images group in hdf5 file.
     - labels (label group of hdf5 file) - labels group in hdf5 file.
+    - mean (float): Mean to use for normalisation.
+    - std (float): Standard deviation to use for normalisation.
     - channels (int) - number of channels for the image data.
     - width (int) - width of image data.
     - height (int) - height of image data.
 
     Returns
-    - image tensor of shape (-1, channels, width, height), where the first dimension is
+    - image float tensor of shape (-1, channels, width, height), where the first dimension is
         the batch size.
-    - label tensor of shape (-1, 1) (squeezed).
+    - label long tensor of shape (-1, 1) (squeezed).
     """
 
     imgs = imgs.view(-1, channels, width, height)
@@ -64,6 +75,7 @@ def transform(imgs, labels, mean, std, channels=1, width=90, height=90):
 
 
 def get_mean_std(iter):
+    """Returns mean, std of iter (Dataloader)."""
     means = []
     stds = []
     for imgs, _ in iter:
@@ -78,7 +90,23 @@ def get_mean_std(iter):
 
 
 def split(data, batch_size=64, train=0.5, valid=0.2, test=0.3, num_workers=0):
-    """Split data into train/valid/test sets of given batch size. Returns iterable generators."""
+    """Randomly split data into train/valid/test sets of given batch size. Returns iterable generators.
+    If the proportions of train, valid and test sum up to less than one, the remaing data
+    is discarded.
+
+    Parameters:
+    data (Characters): Instance of characters class containing the entire data set.
+    batch_size (int): Batch size to use
+    train (float in intervall (0, 1)): data to be used for training set
+    valid (float in interval (0, 1)): data to be used for validation set
+    test (float in interval (0,1)): data to be used for test set
+    num_workers (int): Number of workers for Dataloader
+
+    Returns
+        train_generator (Dataloader)
+        valid_generator (Dataloader)
+        test_generator (Dataloader)
+    """
     train_size = int(train * len(data))
     valid_size = int(valid * len(data))
     test_size = int(test * len(data))
@@ -94,18 +122,3 @@ def split(data, batch_size=64, train=0.5, valid=0.2, test=0.3, num_workers=0):
         test_data, batch_size=batch_size, shuffle=True, num_workers=num_workers)
 
     return train_generator, valid_generator, test_generator
-
-
-def dummy():
-    data = Characters(PATH_TO_DATA_SHORT, 1, 90, 90)
-    print(len(data))
-    print(f"data shape in dummy: {data[3000][0].shape}")
-    transform = transforms.ToPILImage()
-    img = transform(data[3000][0].view(data.width, data.height))
-    img.show()
-    img = transform(data[2499][0].view(data.width, data.height))
-    img.show()
-
-
-# data = Characters(PATH_TO_DATA, 127, 128, 1)
-# dummy()
