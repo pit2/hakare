@@ -15,6 +15,8 @@
     \usepackage{setspace}
     \usepackage{todo}
     \usepackage[a4paper, left=2.5cm, right=2.5cm, top=2.5cm]{geometry}
+    \usepackage{lscape}
+    \usepackage{pdflscape}
  
 
     \usepackage[
@@ -28,14 +30,7 @@
     \usepackage{amsmath}
     \title{Recognizing hand-written Kanji characters via CNN}
 
-    \author{
-        % ##########################################
-        % # Your name goes here
-        % ######
-        % wWll, that should be obvious, right? 
-        Martin Böhm
-        % ##########################################
-        }
+    \author{Martin Böhm}
     
 \onehalfspacing
 \begin{document}
@@ -51,8 +46,16 @@
     \section{Problem Statement}
     \section{Methodology and CNN Topology}
     \subsection{Data Pre-Processing}\label{secPreProcess}
-    Our data is extracted from the ETL-9 dataset provided by the Japanese National Institute of Advanced Industrial Science and Technology (AIST)). With the image data originally gathered from 1973 to 1984, the digitalization was not undertaken with machine learning in mind and the format requires some pre-processing in order to be usable for machine learning. The dataset consists of greyscale image-files of hand-written characters written by several writers; each sheet (corresponding to one image file) contains several characters arranged in a grid-like fashion as shows in Fig. XXX\todo{fig original data}. In total, the dataset contains \todo{num images} images of 3036 different characters, including the entire set of hiragana and katakana, and the rest being kanji characters. 
-    	Using the publicly available script \todo{reference}, we first extract the characters present on a sheet into individual files of size 127x128 pixels. This yields a file structure as shown in Fig \todo{file structure}, where each subfolder contains a series of image files representing the same character and a text file whose sole content is the correct label of this character.
+    Our data is extracted from the ETL-9 dataset provided by the Japanese National Institute of Advanced Industrial Science and Technology (AIST)). With the image data originally gathered from 1973 to 1984, the digitalisation was not undertaken with machine learning in mind and the format requires some pre-processing in order to be usable for machine learning. The dataset consists of greyscale image-files of hand-written characters written by several writers; each sheet (corresponding to one image file) contains several characters arranged in a grid-like fashion as shows in Fig. XXX\todo{fig original data}. In total, the dataset contains 607200 images of 3036 different characters (200 images per character), of which 71 are hiragana and 2965 are kanji characters.
+    	Using the publicly available script from \url{https://github.com/choo/etlcdb-image-extractor}, we first extract the characters present on a sheet into individual files of size 127x128 pixels. This yields a file structure as shown in Figure \ref{fig-directory-structure}, where each subfolder contains a series of image files representing the same character and a text file whose sole content is the correct label of this character.
+    	
+    	\begin{figure}[hbt]
+			\begin{center}
+  				\scalebox{.75}{\includegraphics{../data/results/file_structure.png}}
+  				\caption{Sample directory structure for crawling the images..}
+  				\label{fig-directory-structure}
+  			\end{center}
+		\end{figure}
     	
     	To transform the image files into numerical data suitable for machine learning models, we apply two major pre-precessing steps as described below.\\
     	
@@ -63,11 +66,19 @@
     	\textbf{Characters data class}. The characters data class administers the data for the purpose of feeding it into our machine learning models. Since loading the entirety of the data into tensors may exhaust the RAM on many machines, we lazily load only the relevant batch at a time. Initially, we compute the mean $\mu$ and standard deviation $\sigma$ over the training set. Whenever the dataloader loads a batch of the training, validation, or test set, the following transformation are applied:
     	\begin{enumerate}
     		\item The relevant section of the hdf5 file is loaded into memory and stored into tensors, reshaped in the form $(b, 1, 90, 90$ where $b$ denotes the batch size.
-    		\item Each pixel, initially holding an integer value in range $[0, 255]$, is divided by $255$ to yield a float tensor with values in $[0, 1]$.
+    		\item Each pixel, initially holding an integer value in range $[0, 255]$, is divided by $255$. We obtain a float tensor with values in $[0, 1]$.
     		\item We next normalise image: the new value $p_{new}$ of each pixel is obtained from the present value $p_{old}$ by: $$ p_{new} = \frac{p_{old} - \mu}{\sigma}$$ (Note that the same values of $\mu$ and $\sigma$  obtained from the training set are used when transforming the validation or test set.) After this step, we obtain a float tensor with range $[-1, 1]$ and, in case of the training set, $\mu \approx 0$, $\sigma \approx 1$. Since $\mu$ and $\sigma$ are obtained from the training set as a whole and not for each image individually, a strict identity does not hold but the approximation is good enough.\todo{ref}
     	\end{enumerate}
     	
-    	Fig summarises our data pre-processing pipeline. 
+    	Figure \ref{fig-preprocessing} summarises our data pre-processing pipeline. 
+    	
+    	\begin{figure}[h!]
+			\begin{center}
+  				\scalebox{.5}{\includegraphics{../data/results/preprocessing-pipeline.png}}
+  				\caption{Overview of the image pre-processing pipeline.}
+  				\label{fig-preprocessing}
+  			\end{center}
+		\end{figure}
     	
     	
     \subsection{Convolutional Neural Networks}\label{secCNN}
@@ -75,15 +86,16 @@
     \begin{itemize}
     	\item \textbf{Spacial relationships}: Images are two-dimensional	(per channel). Therefor, it is not only the actual pixel value that holds information but also where this pixel is located and what values neighbouring pixels hold. This topological information is lost in the flattened input of feed-forward networks; CNNs, on the other hand, process an image per channel in its two-dimensional representation. 
     	\item \textbf{Feature extraction}: Each convolutional layer processes its image input by applying a convolutional filter. This filter slides over the image (possibly extended by a frame of zeros if \textit{padding} is used) a certain number of pixels at a time (the so-called \textit{stride}), computing the dot-product of the filter and the filter-sized patch of the input. It is important that the filter be of uneven size - typical sizes are $3x$ or $5x5$ for \todo{why?}. Since a filter is considerably smaller than the input, it is applied repeatedly on different regions of the input, allowing the filter to focus on the detection of the same feature (such as, e.g., a vertical line) throughout the image, a property commonly referred to as \textit{translation invariance}. The output of a convolutional layer is a set of feature maps, or put differently: we increase the number of channels of the image. Depending on the padding, filter size, and stride, the dimension of the image may change slightly as well as given.
-    	\item \textbf{Dimensionality reduction}: Another common type of layer in a CNN is the pooling layer. Typically applied after a convolution, pooling aggregates the values of several pixels into one. For instance, a max-pooling filter of size 2 outputs the maximum value of the four pixels in its range in each step. The result is a rather drastic dimensionality reduction. Let $k$ denote the filter size, $p$ the padding size, and $s$ its stride. Typical pooling filters are \todo{ref Deep learning book}Given an input image of size $dxd$, the output after pooling is given by
+    	\item \textbf{Dimensionality reduction}: Another common type of layer in a CNN is the pooling layer. Typically applied after a convolution, pooling aggregates the values of several pixels into one. For instance, a max-pooling filter of size 2 outputs the maximum value of the four pixels in its range in each step. The result is a rather drastic dimensionality reduction. Let $k$ denote the filter size, $p$ the padding size, and $s$ its stride. Typical pooling filters are \todo{ref Deep learning book}Given an input image of size $d$x$d$, the output dimension after pooling is given by
     	$$\todo{formula}$$
     	This same formula applies for the dimensionality after convolution; however, while pooling typically shrinks an image in half, the main objective of convolution is feature extraction - the dimensionality reduction is marginal and essentially a side-effect of the applied parameters. 
     	\item \textbf{Increased performance}: As a result of the feature extraction and dimensionality reduction, CNNs usually have fewer learnable weights than a comparable feed-forward network. This can speed up training times considerably, resulting in a more robust model.
     \end{itemize}
     
-    While not specific to CNNs, we introduce two more ingredients for our neural model:
+    While not specific to CNNs, we introduce three more ingredients for our neural model:
     \begin{itemize}
-        \item \textbf{Dropout}:	Overfitting is the learning of spurious patterns merely present in the training data, but not the test data. To detect overfitting, the employ a form of early stopping. After each training epoch, we evaluate our model on the validation set and compare the loss. We track the smallest loss on the validation set and compare it to the current validation loss; only if if it is smaller do we keep the current model. In case of overfitting, training and validation loss would diverge and the overfitted model, yielding a higher validation loss despite a continuously decrease training loss, is discarded. A common regularization technique to combat overfitting is the use of dropout layers. A dropout layer is technically not a layer in itself for it does not add neurons to a neural network. Instead, it works in conjunction with another layer to forbid usage of random neurons with a certain dropout probability. Unable to build reliance on a prominent subset of neurons, the neural network is forced to explore a wider selection of paths to generate the desired output. Note that dropout layers are inactive when we operate the network in evaluation mode. 
+    	\item \textbf{Early stopping}: Overfitting is the learning of spurious patterns merely present in the training data, but not the test data. To detect overfitting, the employ a form of early stopping. After each training epoch, we evaluate our model on the validation set and compare the loss. We track the smallest loss on the validation set and compare it to the current validation loss; only if if it is smaller do we keep the current model. In case of overfitting, training and validation loss would diverge and the overfitted model, yielding a higher validation loss despite a continuously decrease training loss, is discarded.
+        \item \textbf{Dropout}:	A common regularisation technique to combat overfitting is the use of dropout layers. A dropout layer is technically not a layer in itself for it does not add neurons to a neural network. Instead, it works in conjunction with another layer to forbid usage of random neurons with a certain dropout probability. Unable to build reliance on a prominent subset of neurons, the neural network is forced to explore a wider selection of paths to generate the desired output. Note that dropout layers are inactive when we operate the network in evaluation mode. 
     	\item \textbf{Batch normalisation}: We argued in section \ref{secPreProcess} that normalising the data input data can improve training speed and thereby model performance. As we continue training and sampling data in batches of size $\le n$ where $n$ is the size of the training set, the distribution of features is set to drift. As a consequence, higher layers, i.e. those further away from the output layer, need to adjust to keep up with the change in distribution, slowing down learning. Batch-normalisation remedies this \textit{covariate shift} by normalising each batch, i.e. subtracting the mean and dividing by its standard deviation. With each layer being fed normalised data, one can usually employ a higher learning rate. 
     \end{itemize}
     
@@ -92,10 +104,16 @@
     Before we discuss our network topology, we offer some reasoning for it in the next section.
 
  	
-    \subsection{Hyperparameters Optimisation}
-    Neural networks are complex black-box models and it is often not straight-forward to estimate a-priori the consequences of certain choices that drive model complexity (e.g. number and type of layers) and impact the performance (e.g. dropout probability, weight decay) both with respect to training speed and fit. These unknowns are generally referred to as \textit{hyperparameters} and finding reasonable values is an important step before actually training the model.
+    \subsection{Hyper-parameters Optimisation}
     
-    Hyperparameters optimisation is computationally expensive as many neural models (one per hyperparameter configuration) need to be trained. To complicate things, hyperparameters not only tend to be sensititve to the data, but are notoriously inter-dependent so that sequential optimisation, e.g. first fixing the number of layers and then deciding a dropout-rate, is out of the question. In this work, we utilise the Optuna framework to aid in hyperparameters optimisation. Due to resource constraints, we limit ourself to only 8 epochs of training per trial and merely 15 trials, and expose each model to only half of the available dataset; our results here are to be understood as a principle proof-of-concept to illustrate the general idea. We do not make the claim here that our hyperparamters optimisation is encompassing enough to have identified the absolutely best model for this task. In the sequel, we justify our choice of optimisable and fixed hyperparameters.
+    Neural networks are complex black-box models and it is often not straight-forward to estimate a-priori the consequences of certain choices that drive model complexity (e.g. number and type of layers) and impact the performance (e.g. dropout probability, weight decay) both with respect to training speed and fit. These unknowns are generally referred to as \textit{hyper-parameters} and finding reasonable values is an important step before actually training the model.
+    
+    Hyperparameters optimisation is computationally expensive as many neural models (one per hyper-parameter configuration) need to be trained. To complicate things, hyper-parameters not only tend to be sensitive to the data, but are notoriously inter-dependent so that sequential optimisation, e.g. first fixing the number of layers and then deciding a dropout-rate, is out of the question. In this work, we utilise the Optuna framework to aid in hyper-parameters optimisation. 
+    
+    We conduct two studies to optimise hyper-parameters to compare the effect of regularisation: in the first setup (hyperparameter-optimization-13.db), we employ batch-normalisation and dropouts after every convolution (with dropout rate as an optimisable hyper-parameter). In the second trial (hyperparameter-optimizatio-15.db), we do without dropout layers and use batch-normalisation more sparingly (only after the first, third, and sixth convolution if they are present).  
+    
+    Due to resource constraints, we limit ourself to only 8 epochs of training per trial and merely 15 trials (first study) and 30 trials (second study), respectively. Additionally, we expose each model to only half of the available dataset; our results here are to be understood as a principle proof-of-concept to illustrate the general idea. We do not make the claim here that our hyper-parameters optimisation is encompassing enough to have identified the absolutely best model for this task. In the sequel, we justify our choice of optimisable and fixed hyper-parameters.
+   
     
     \begin{itemize}
     	\item \textbf{Number of convolutions}. We explore a variable number of convolutions in our network, chosen  in the range $[4, 8] \cap \mathbb{N}$. Deeper models tend to generalise better but the depth comes at the expense of longer training times as the number of trainable parameter increases. As higher model complexity could, in principal, make a model more susceptible to overfitting, this hyperparameter is a prime example for the need of simultaneous optimisation with hyperparameters for regularisation techniques.
@@ -104,18 +122,134 @@
     	\item \textbf{Convolution stride and padding}: For the first two convolutions, we choose stride 2 for small networks (number $c$ of convolutional layers $\le 6$), and a larger stride of 3 for deeper architectures ($c > 6$). The reasoning behind this choice is that more convolutions mean more passes of various filters over the same image. A larger stride counters, to some extent, the additional computational burden of network depth as it essentially has the effect of downsampling the image. Beginning at the third convolution, choose a constant stride of 1: the image has already been reduced in size at this point and in conjunction with the small filters, a granular scan is desirable. For padding, we choose the value $\lfloor \frac{c}{2}\rfloor - 1$ to slightly reduce the information loss at the borders and reduce dimensionality not too much in deeper networks. 
     	\item \textbf{Number of feature maps per convolution}: Constructing more feature maps allows for a more robust feature extraction, but a balance needs to be struck here: as the input dimension of the fully-connected layer at the bottom is given by $f \cdot d^2$ where $f$ is the number of channels and $d$ the width/height of the image after all convolutions, ending up with too many channels will hurt training speed considerably. Therefor, we decrease the number of output channels for the first convolution depending on the network depth as given in the following table\todo{table}. Each subsequent convolution has twice as many output channels as input channels. 
     	\item \textbf{Learning rate}: We use the Adams optimiser, which uses an adaptive learning rate; nonetheless, choosing a good base rate can speed up learning particular in the early epochs. We therefor sample learning rates uniformly from $[0.0001, 0.004]$.
-    	\item \textbf{Dropout rate}: We sample dropout rates from the interval [0.3, 0.7]. The effect of dropout has already been explained in Section \ref{secCNN}.
+    	\item \textbf{Dropout rate (only first study)}: We sample dropout rates from the interval [0.3, 0.7]. The effect of dropout has already been explained in Section \ref{secCNN}.
     	\item \textbf{Batch size}: With a higher batch size, fewer weight updates are calculated per epoch. This reduces the computational load at the potential expense of accuracy. We sample batch sizes from the set $\{16, 32, 64, 128, 256, 512, 1024\}$.
     	\item 
     \end{itemize}
     
-    We optimised above set of hyperparameters using an elitist genetic algorithm \todo{reference} with population size 20, 
+    \section{Results and Discussion}
     
-    \subsection{Final Topology}
+    \subsection{Results}
+    
+    We optimised above set of hyperparameters using an elitist genetic algorithm \todo{reference} with population size 20, crossover probability 0.9, swapping probability 0.5 and mutation probability. The objective function to be maximised is the accuracy on the test set. 
+    
+    The results we obtained are shown in Table \ref{tab-res1} for the first study and Table XX\ref{tab-res2} for the second one.
 
-    \section{Results}
-    \section{Discussion}
-    \section{Conclusion}
+    \begin{table}
+    \begin{tabular}{l||c|c|c|c|c|c||r}
+  		Trial & Layers & Dropout rate & Filter \#1 & Filter \#2 & Batch size & Learning rate & Accuracy (\%) \\
+  		\hline\hline
+  		0 & 7 & 0.52323 & 3 & 3 & 1024 & 0.00012 & 0.0417\\\hline
+  		1 & 4 & 0.69583 & 3 & 3 & 256 & 0.00041 & 10.91\\\hline
+  		2 & 6 & 0.54831 & 3 & 5 & 64 & 0.00165 & 0.0230\\\hline
+  		3 & 6 & 0.66256 & 5 & 3 & 1024 & 0.00092 & 0.0274\\\hline
+  		4 & 6 & 0.48174 & 7 & 5 & 32 & 0.00030 & 10.91\\\hline
+  		5 & 8 & 0.35160 & 5 & 3 & 32 & 0.00109 & 0.0307\\\hline
+  		6 & 6 & 0.59835 & 7 & 5 & 16 & 0.00054 & 0.0187\\\hline
+  		7 & 6 & 0.54978 & 3 & 5 & 64 & 0.00013 & 0.0033\\\hline
+  		8 & 7 & 0.62328 & 3 & 3 & 128 & 0.00158 & 0.0362\\\hline
+  		9 & 8 & 0.36897 & 7 & 5 & 16 & 0.00066 & 0.0296\\\hline
+  		10 & 4 & 0.4120 & 3 & 3 & 256 & 0.00031& 62.14\\\hline
+  		11 & 4 & 0.4107 & 3 & 3 & 256 & 0.00031 & 65.15\\\hline
+  		12 & 4 & 0.4097 & 3 & 3 & 256 & 0.00024& 65.30\\\hline
+  		13 & 4 & 0.4208 & 3 & 3 & 512 & 0.00022 & 54.96\\\hline
+  		14 & 5 & 0.3109 & 3 & 3 & 256 & 0.00317& 77.92 \\\hline
+  		\textbf{15} & \textbf{5} & \textbf{0.32628} & \textbf{5} & \textbf{3} & \textbf{256} & \textbf{0.00386} & \textbf{78.50}
+  		 
+	\end{tabular}
+	\caption{Results of study \#1. Approximate accuracy obtained on the test set after training for 8 epochs, given number of layers, dropout rate (rounded), sizes of kernels for the first and second convolution, respectively, batch size, and learning rate (rounded) as hyper-parameters. Winning trial in bold.}
+	\label{tab-res1}
+	 \end{table}
+	 
+	     \begin{table}
+    \begin{tabular}{l||c|c|c|c|c|c||r}
+  		Trial & Layers  & Filter \#1 & Filter \#2 & Batch size & Learning rate & Accuracy (\%) \\
+  		\hline\hline
+  		0 & 5 & 5 & 5 & 512 & 0.00041 & 90.93\\\hline
+  		1 & 7 & 3 & 3 & 64 & 0.00199 & 55.87\\\hline
+  		2 & 4 & 3 & 4 & 16 & 0.00220 & 72.34\\\hline
+  		3 & 5 & 5 & 5 & 128 & 0.00029 & 92.36\\\hline
+  		4 & 7 & 7 & 3 & 64 & 0.00022 & 67.36\\\hline
+  		5 & 6 & 3 & 5 & 256 & 0.00017 & 80.88\\\hline
+  		6 & 4 & 3 & 3 & 32 & 0.00165 & 82.67\\\hline
+  		7 & 8 & 5 & 5 & 64 & 0.0002 & 41.37\\\hline
+  		8 & 8 & 7 & 5 & 16 & 0.0005 & 0.0253\\\hline
+  		9 & 4 & 3 & 3 & 16 & 0.00014 & 87.00\\\hline
+  		10 & 7 & 5 & 3 & 16 & 0.00011 & 62.19\\\hline
+  		11 & 5 & 7 & 3 & 512 & 0.000695 & 90.17\\\hline
+  		\textbf{12} & \textbf{5} & \textbf{5} & \textbf{5} & \textbf{128} & \textbf{0.00045} & \textbf{92.39}\\\hline
+  		13 & 5 & 5 & 5 & 128 & 0.00095 & 89.80\\\hline
+  		14 & 6 & 5 & 5 & 128 & 0.0.00031 & 85.59 \\\hline
+  		15 & 5 & 5 & 5 & 1024 & 0.00108 & 90.65
+  		 
+	\end{tabular}
+	\caption{Results of study \#2.Approximate accuracy obtained on the test set after training for 8 epochs, given number of layers, sizes of kernels for the first and second convolution, respectively, batch size, and learning rate (rounded) as hyper-parameters. Winning trial in bold.}
+	\label{tab-res2}
+	 \end{table}
+
+
+	\subsection{Discussion}
+    Study 2 compares more favourably overall, yielding several trials with competitive accuracies $\ge 90\%$ whereas no trial of study 1 passed the $80\%$ accuracy threshold. To better understand the differences, we train the winner of each study for 41 epochs. The picture hinted at from observing the behaviour in the first 8 epochs solidifies in the long term. Both models converge but the winner from study 2 ultimately achieves an accuracy of about 96.55\% on the test set compared to only about 86.13\%\todo{check} for the winner from study 1. Figures \ref{fig-trial-1-15-loss} and \ref{fig-trial-1-15-acc} show the development of loss and accuracy, respectively, on the training and validation set. 
+    \begin{figure}[hbt]
+    	\begin{center}
+  			\scalebox{.75}{\includegraphics{../data/results/trial-1-15-loss-40.png}}
+  			\caption{Average loss per epoch on the train and validation set for trial 15 of study 1.}
+  			\label{fig-trial-1-15-loss}
+  		\end{center}
+	\end{figure}
+	\begin{figure}[hbt]
+		\begin{center}
+  			\scalebox{.75}{\includegraphics{../data/results/trial-1-15-accuracy-40.png}}
+  			\caption{Average accuracy per epoch on the train and validation set for trial 15 of study 1.}
+  			\label{fig-trial-1-15-acc}
+  		\end{center}
+	\end{figure}
+	
+	\begin{figure}[hbt]
+    	\begin{center}
+  			\scalebox{.75}{\includegraphics{../data/results/trial-2-12-loss-40.png}}
+  			\caption{Average loss per epoch on the train and validation set for trial 12 of study 2.}
+  			\label{fig-trial-2-12-loss}
+  		\end{center}
+	\end{figure}
+	\begin{figure}[hbt]
+		\begin{center}
+  			\scalebox{.75}{\includegraphics{../data/results/trial-2-12-accuracy-40.png}}
+  			\caption{Average accuracy per epoch on the train and validation set for trial 12 of study 2.}
+  			\label{fig-trial-2-12-acc}
+  		\end{center}
+	\end{figure}
+
+
+   	  	Interestingly, all trials of study 1 consistently showed a validation loss significantly lower than the training loss. This could, in principle, point to an underlying problem (e.g. leakage of validation/test data into the training set, a biased split such that test/validation contains significantly more easy cases). On the other hand, regularisation mechanisms such as dropout and batch-normalisation, which have been heavily present in study 1 trials but absent (dropout) from or significantly reduced (batch-normalisation) in trials of study 2, are only active in training mode, but not during evaluation mode. Excessive regularisation can therefore make learning notoriously hard, not only leading to a high loss on the training set but also hindering convergence overall. To verify that this phenomenon is a direct consequence of regularisation, we briefly train the winner configuration of study 1 (trial 15) but with both the dropout and batch-normalisation layers removed. With no regularisation in place, we'd expect training and validation loss to be similar in the early epochs, with a tendency for the training loss to be lower than the validation loss. Our results depicted in Figures \ref{fig-trial-1-15-loss-noreg} and \ref{fig-trial-1-15-acc-noreg} show that this is indeed the case\footnote{Since batch-normalisation hurts the training performance, we would not have detected this phenomenon by including the number of batch-normalisation-layers as optimsable hyper-parameters in our trial setup as our objective function maximised the accuracy on the test set.}: With regularisation mechanisms removed, beginning in epoch 2, the validation loss is consistently higher than the training loss. The exception in the first two epochs is a consequence of batching and dramatic improvements of weights in the early epochs: as the neural net is initialised with random weights, the initially devastating fit leads to significant training loss which is heavily reduced with each weight update but adds to the mean nonetheless. The validation loss, on the other hand, is calculated with the better weights from the end of the training epoch.   	  	
+   	  	
+    \begin{figure}[hbt]
+		\begin{center}
+  			\scalebox{.75}{\includegraphics{../data/results/trial-1-15-loss-11-no-reg.png}}
+  			\caption{Average accuracy per epoch on the train and validation set for trial 15 of study 1 with all regulation mechanisms removed.}
+  			\label{fig-trial-1-15-loss-noreg}
+  		\end{center}
+	\end{figure}
+   	\begin{figure}[hbt]
+		\begin{center}
+  			\scalebox{.75}{\includegraphics{../data/results/trial-1-15-accuracy-11-no-reg.png}}
+  			\caption{Average accuracy per epoch on the train and validation set for trial 15 of study 1 with all regulation mechanisms removed.}
+  			\label{fig-trial-1-15-acc-noreg}
+  		\end{center}
+	\end{figure}
+
+    
+    Figure XXX \todo{fig} shows our final CNN topology, as obtained from the hyper-parameters optimisation in the previous section. After training for 40 epochs, we achieved a loss of 0.1322 and an accuracy of about 96.55\% on the test set. This appears to be a competitive result. As both the validation and training error are still slightly decreasing from one epoch to the next, we expect that further training iterations could further improve this result. Our results from the optimisation studies further show that regularisation techniques, while necessary and desirable to combat overfitting, should be used with care as excessive regularisation can hurt model performance. 
+    
+    \section{Conclusions and Future Work}
+    In this work, we have employed convolutional neural networks to classify handwritten hiragana and kanji characters. We built a pre-processing pipeline to store the images in a hdf5-file, a format suitable for large files and lazy loading, and center-cropped and normalised each image. Investigating the effect of regularisation techniques, we launched two hyperparameters optimisation studies to identify a competitive set of hyperparameters for each milieu. Our winning model (see Fig \todo{fig}) used regularisation in the form of batch-normalisation only sparingly and achieved an accuracy of about 96.55\% on the test set. 
+    
+    As we have limited the range of our hyperparameter optimisation studies due to resource constraints, it is likely that our hyperparameters are a strong choice, but not yet fully optimal. A more explorative search, possibly including some hyperparameters such as the number of batch normalisation layers or the choice of the betas for the Adams optimiser, might identify an even better set. In any case, investing more time in training by increasing the epochs limit well above our cut-off of 40 is almost guaranteed to improve test set accuracy. 
+    
+    The ETL-9 character set we have chosen for this work is a vast one, but does not include Katakana characters. This small but important subset of Japanese characters is, however, present in the ETL-1 dataset. Our pre-processing pipeline would need to be adapted, as the images in the ETL-1 dataset have dimensions 64x63. Since there are fewer samples per character compared to the ETL-9 dataset, data augmentation techniques could be employed to generate more samples in order to keep the dataset balanced. While extending the model beyond the 2965 kanji characters is, in essence, possible as well provided a suitable base of labeled data can be obtained, it should be noted that rarely-used characters are likely of less importance for most users.
+    
+    A machine learning model in itself has limited use but fortunately, many application scenarios spring to mind:
+    With a front-end for a touch-screen device such as a smartphone or tablet, users could hand-write characters and have them automatically identified.  For non-native speakers of Japanese, this could also be employed in the context of a learning app that helps users write and memorise particularly the Kanji characters. Adding audio to have the app pronounce the character could also be helpful. While we focused on recognising single characters, there is no reason to stop here: for dictionary-like applications, the model could be extended to identify entire words, consisting of several kanji and kana in sequence. 
            
             
       \printbibliography
