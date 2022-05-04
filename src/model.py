@@ -219,7 +219,8 @@ def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
 
     for i in range(model.epochs, model.epochs + epochs):
 
-        model, train_loss, train_acc = _step(model, optimizer, train_gen, params, stats)
+        model, train_loss, train_acc = _step(
+            model, optimizer, train_gen, params, stats)
         model.train_losses.append(train_loss)
         model.train_acc.append(train_acc*100)
 
@@ -259,7 +260,8 @@ def _step(model, optimizer, train_gen, params, stats):
     model.train()
     with tqdm(train_gen, unit='batches') as progress:
         for img, target in train_gen:
-            img, target = data.transform(img, target, stats["mean"], stats["std"], 1, 90, 90)
+            img, target = data.transform(
+                img, target, stats["mean"], stats["std"], 1, 90, 90)
             img = img.to(DEVICE)
             target = target.to(DEVICE)
 
@@ -296,7 +298,8 @@ def evaluate(model, test_gen, stats):
     accuracy = Accuracy().to(DEVICE)
     with torch.no_grad():
         for img, target in test_gen:
-            img, target = data.transform(img, target, stats["mean"], stats["std"], 1, 90, 90)
+            img, target = data.transform(
+                img, target, stats["mean"], stats["std"], 1, 90, 90)
             img = img.to(DEVICE)
             target = target.to(DEVICE)
             predict = model(img)
@@ -352,7 +355,8 @@ def objective(trial, epochs=8, model_path=None):
     torch.cuda.empty_cache()
     model = load_model(model_path, trial)
     dataset = data.Characters(data.PATH_TO_DATA, 1, 90, 90)
-    batch_size = trial.suggest_categorical("batch size", [16, 32, 64, 128, 256, 512, 1024])
+    batch_size = trial.suggest_categorical(
+        "batch size", [16, 32, 64, 128, 256, 512, 1024])
     train_data, valid, test = data.split(
         dataset, batch_size=batch_size, train=0.3, valid=0.05, test=0.15, num_workers=0)
     dataset.mean, dataset.std = data.get_mean_std(train_data)
@@ -413,6 +417,3 @@ def optimize_hyper(name, save_study=False, load_study=False, n_trials=10, timeou
                                                                           crossover_prob=0.9,
                                                                           swapping_prob=0.5))
     study.optimize(objective, n_trials=n_trials, timeout=timeout)
-
-
-model = fit(None, epochs=3, config=1)
