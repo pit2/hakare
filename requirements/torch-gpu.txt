@@ -1,4 +1,4 @@
--r requirements/base.txt
+-r base.txt
 
 torch==1.11.0
 torchmetrics==0.8.0

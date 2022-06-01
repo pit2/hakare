@@ -1,6 +1,6 @@
 -f https://download.pytorch.org/whl/torch_stable.html
 
--r requirements/base.txt
+-r base.txt
 
 torch==1.11.0+cpu
 torchmetrics==0.8.0
