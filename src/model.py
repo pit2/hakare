@@ -8,6 +8,7 @@ from tqdm import tqdm
 import optuna
 import math
 import os.path
+import coremltools as ct
 
 
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -189,6 +190,13 @@ class Recognizer(torch.nn.Module):
         x = self.cnn(x)
         x = x.view(-1, self.FC_DIM)
         return self.fc(x)
+
+    def convert_to_onnx(self, filename_onnx, sample_input):
+        input_names = ["in_image"]
+        output_names = ["out_class"]
+
+        torch.onnx.export(self, torch.from_numpy(np.array(sample_input)), filename_onnx,
+                          input_names=input_names, output_names=output_names)
 
 
 def train(model, train_gen, valid_gen, params={"lr": 1e-3, "weight_decay": 1e-4,
@@ -417,3 +425,32 @@ def optimize_hyper(name, save_study=False, load_study=False, n_trials=10, timeou
                                                                           crossover_prob=0.9,
                                                                           swapping_prob=0.5))
     study.optimize(objective, n_trials=n_trials, timeout=timeout)
+
+
+def trace_model(model_path):
+    model = load_model(model_path)
+    model.eval()
+    dataset = data.Characters(data.PATH_TO_DATA, 1, 90, 90)
+    train_data, valid, test = data.split(
+        dataset, batch_size=1, train=0.9, valid=0.05, test=0.05, num_workers=0)
+    dataset.mean, dataset.std = data.get_mean_std(train_data)
+    stats_dict = {"mean": dataset.mean, "std": dataset.std}
+    for img, target in train_data:
+        sample_input, _ = data.transform(
+            img, target, stats_dict["mean"], stats_dict["std"], 1, 90, 90)
+        break
+    traced_model = torch.jit.script(model)  # (model, sample_input)
+    print(type(traced_model))
+    return traced_model(sample_input), sample_input
+
+
+def convert_to_coreml(traced_model, sample_input):
+    print(type(traced_model))
+    model = ct.convert(traced_model, inputs=[
+                       ct.TensorType(shape=sample_input.shape)], source="pytorch")
+    model.save(os.path.join("data", "models", "ios_model.mlmodel"))
+
+
+traced_model, sample_input = trace_model(
+    os.path.join("data", "models", "model-trial-2-12-ep40.pt"))
+convert_to_coreml(traced_model, sample_input)

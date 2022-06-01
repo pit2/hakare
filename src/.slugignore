@@ -1,0 +1,14 @@
+/data/optuna
+/data/results
+/data/tmp
+/data/fil-results
+/notepads
+/paper
+*.csv
+*.hdf5
+*.pdf
+/.venv
+/.vscode
+*.md
+
+
