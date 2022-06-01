@@ -5,7 +5,7 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import os.path
 
-PATH_TO_DATA = os.path.join("data", "ETL-9-90x90.hdf5")
+PATH_TO_DATA = os.path.join("data", "ETL-9-90x90-10.hdf5")
 DEVICE = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 
